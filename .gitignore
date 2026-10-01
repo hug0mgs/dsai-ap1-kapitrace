@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Prisma (SQLite dev databases)
+**/*.db
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+
+# AI Tool Configs (manter no repo)
+# .agents/ .claude/ .cursor/ .devin/ — incluídos
+
+# Arquivos de planejamento local
+plano_ap1_ciberseguranca.md
+TASKS.md
