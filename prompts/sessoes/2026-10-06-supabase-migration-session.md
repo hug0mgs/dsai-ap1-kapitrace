@@ -33,3 +33,13 @@ Validação: 84 testes em PostgreSQL real passaram, incluindo E2E Chrome, migrat
 Uma execução final encontrou indisponibilidade durante o setup do Docker antes de iniciar testes. O readiness foi ajustado para TCP, evitando considerar o servidor Unix temporário do initdb como pronto; diagnóstico mostra fase sem URLs/segredos. Suíte executada novamente após esse ajuste.
 
 Commit funcional final: 5617970. Normalizada somente a quebra de linha final do SQL gerado antes de publicar. Verificação final: 84 testes passaram, zero falhas/skip; validação de schema, build backend, lint/build frontend e diff check aprovados. Containers temporários encerrados. Arquivos .env e .env.local confirmados como ignorados.
+
+## Configuração remota e mensagens posteriores — credenciais redigidas
+
+Usuário forneceu URL pública e publishable key do Supabase; valores não necessários ao registro omitidos. Foi explicado que Prisma precisa de conexão PostgreSQL, não da Data API pública. Em seguida forneceu URI direta e senha do banco; SENHA REDIGIDA e não exportada. Conexão salva apenas no .env com senha codificada e permissão 0600. DNS direto somente IPv6 e TCP indisponível neste ambiente (errno 101). Esclarecido que Shared Pooler IPv4 está disponível no plano gratuito.
+
+Última mensagem do usuário, sem segredo:
+
+postgresql://postgres.ybqhmhjghgndkvrtugnc:[YOUR-PASSWORD]@aws-1-us-west-2.pooler.supabase.com:5432/postgres
+
+Session Pooler configurado em DIRECT_URL e Transaction Pooler em DATABASE_URL, ambos privados, com TLS e limite de conexão. Conexão bem-sucedida; sete tabelas existentes e ausência de histórico Prisma. Baseline, deploy e check executados com sucesso, sem reset/perda de dados. Auditoria: sete tabelas com RLS e sem SELECT público; _prisma_migrations sem RLS e com SELECT público. Complemento de SPEC criado antes da correção do histórico. Não registrar URLs completas com senha, JWTs ou conteúdos de registros de usuários.

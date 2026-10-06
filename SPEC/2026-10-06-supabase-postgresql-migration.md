@@ -49,3 +49,9 @@ Trailers de todo commit:
 Agent: Codex-GPT-6
 Spec: SPEC/2026-10-06-supabase-postgresql-migration.md
 ```
+
+## Complemento de segurança — auditoria remota em 2026-10-06
+
+A conexão pelo Shared Pooler IPv4 foi confirmada no projeto indicado pelo operador. As sete tabelas preexistentes foram validadas/baselinadas e a migration de proteção aplicada sem apagar dados. A auditoria adicional constatou que `_prisma_migrations`, criada pelo Prisma no schema exposto, permanecia sem RLS e com SELECT concedido a anon/authenticated pelos defaults Supabase.
+
+Antes de implementar a correção, commitar este complemento. Adicionar uma terceira migration que habilita RLS e revoga todos os privilégios de PUBLIC/anon/authenticated no histórico do Prisma, preservando acesso do owner/BYPASSRLS para deploys futuros. Não modificar migrations já aplicadas/checksums, não apagar histórico. Ampliar db:check e testes PostgreSQL para comprovar proteção também do histórico e ausência de permissões públicas de leitura/escrita nas tabelas conhecidas. Testar localmente antes de aplicar no Supabase. Atualizar evidências, README e branch stagging. URLs e senha fornecidas pelo usuário ficam apenas no .env ignorado; qualquer registro de conversa com senha deve ser redigido, nunca exportado literalmente.
