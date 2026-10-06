@@ -1,26 +1,4 @@
-'use client';
-
+import Link from 'next/link';
 export default function Topbar() {
-  return (
-    <div className="topbar">
-      <div className="topbar-search">
-        <span className="topbar-search-icon">🔍</span>
-        <input
-          type="text"
-          placeholder="Quick lookup — IP, domain, hash, email..."
-        />
-      </div>
-
-      <div className="topbar-actions">
-        <button className="topbar-icon-btn" title="Notifications">
-          🔔
-          <span className="badge">3</span>
-        </button>
-        <button className="topbar-icon-btn" title="Settings">⚙️</button>
-        <div className="topbar-avatar" title="Profile">
-          HM
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="topbar"><Link href="/lookup">Consultar indicador</Link><div className="topbar-actions"><Link href="/dashboard">Watchlist</Link><Link href="/login">Entrar</Link></div></div>;
 }
