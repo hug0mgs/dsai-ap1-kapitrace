@@ -11,7 +11,7 @@
 
 | Ferramenta / Plataforma | Modelo | Função no Projeto |
 | ----------------------- | ------ | ----------------- |
-| **Codex** | **GPT-6** | SPEC datada, migração de mocks para HTTP nativo, resiliência/cache, segurança e testes de interface via Chrome DevTools Protocol |
+| **Codex** | **GPT-6** | SPEC datada, migração de mocks para HTTP nativo, resiliência/cache, segurança, autenticação Bearer/JWT e testes de interface via Chrome DevTools Protocol |
 | **Antigravity IDE**     | **Gemini 3.8 Flash** | Especificação Formal (SDD), Arquitetura de Software, Implementação do Motor de ThreatScore, Validadores RFC e Automação da Suíte de Testes (Unit, Integration, E2E) |
 | **Claude Code**         | Claude 3.5 Sonnet | Prototipação e Scaffolding Inicial |
 | **Devin AI**            | Devin Engine | Configurações de Ambiente e Integração Contínua |
@@ -52,7 +52,8 @@ dsai-ap1-KapiTrace/
 │
 ├── SPEC/                        # Especificações técnicas e SDD
 │   ├── 2026-10-01-threat-analyzer.md
-│   └── 2026-10-06-real-api-integration.md
+│   ├── 2026-10-06-real-api-integration.md
+│   └── 2026-10-06-auth-and-middleware-reactivation.md
 │
 ├── src/
 │   ├── frontend/                # Next.js 15 App Router
@@ -131,15 +132,27 @@ Chaves vazias desabilitam a fonte com estado explícito. IPInfo usa o endpoint l
 
 Somente a URL do backend fica em `NEXT_PUBLIC_API_BASE_URL`. Todas as variantes `.env.*` estão ignoradas, com exceção dos exemplos sem segredos. Não coloque credenciais no frontend, Git ou registros de sessão. `npm run check:secrets` verifica conteúdo no Git por arquivos de ambiente proibidos e padrões conhecidos de segredos; é uma barreira adicional, não um detector universal. JWT precisa de pelo menos 32 caracteres; cadastro público não concede `admin`.
 
-Timeout por fonte: 5s; deadline total: 10s; no máximo um retry para rede/502/503/504. 429 e 503 ativam cooldown conforme `Retry-After`. Intervalos por fornecedor e capacidade global são configuráveis no exemplo; ajuste às cotas da sua conta. O endpoint público limita 30 consultas/minuto por IP. Limites e single-flight são locais a cada processo; múltiplas instâncias exigem coordenação compartilhada.
+Timeout por fonte: 5s; deadline total: 10s; no máximo um retry para rede/502/503/504. 429 e 503 ativam cooldown conforme `Retry-After`. Intervalos por fornecedor e capacidade global são configuráveis no exemplo; ajuste às cotas da sua conta. O Lookup autenticado limita 30 consultas/minuto por IP, após validar o JWT. Limites e single-flight são locais a cada processo; múltiplas instâncias exigem coordenação compartilhada.
 
 ### Score e cache real
 
-`GET /api/lookup/{ip|domain|hash}/{indicador}` aceita IPv4/IPv6 públicos, MD5/SHA-1/SHA-256 e domínios normalizados. Tipos não suportados e entradas inválidas retornam 400 antes de consultar fornecedores. O ThreatScore mantém pesos 35/40/15/10 e renormaliza apenas métricas disponíveis; cobertura de evidência acompanha a análise. Sem métrica válida, o score é nulo, nunca zero por indisponibilidade.
+`GET /api/lookup/{ip|domain|hash}/{indicador}` exige `Authorization: Bearer <token>` e aceita IPv4/IPv6 públicos, MD5/SHA-1/SHA-256 e domínios normalizados. Sem token válido, retorna 401 antes de validação, cache ou chamadas externas. Com autenticação válida, tipos não suportados e entradas inválidas retornam 400 antes de consultar fornecedores. O ThreatScore mantém pesos 35/40/15/10 e renormaliza apenas métricas disponíveis; cobertura de evidência acompanha a análise. Sem métrica válida, o score é nulo, nunca zero por indisponibilidade.
 
 Cache completo: 24h. Cache parcial com score: 5min. HIT retorna `source: cache` sem HTTP externo; MISS retorna `source: api`. Caches da simulação antiga são invalidados pela versão `real-api-v1`. Se a avaliação falhar, um último resultado real de até 48h pode ser retornado como `stale: true`, sem renovar a coleta. Sem fontes acessíveis e sem cache adequado, retorna 503; respostas válidas sem registro retornam dados insuficientes. A interface identifica erros, dados parciais e antigos.
 
-Cadastro/login reais ficam em `/login`; busca em `/lookup`; inclusão, listagem e remoção da watchlist em `/dashboard`. A sessão usa `sessionStorage` e termina ao fechar a aba ou sair. Estatísticas e notificações fictícias foram removidas.
+Cadastro/login reais ficam em `/login`; busca em `/lookup`; inclusão, listagem e remoção da watchlist em `/dashboard`. O JWT fica em estado global privado **somente em memória**, durante a navegação Next; não é salvo em localStorage, sessionStorage, cookies ou URL. Recarregar a página, fechar a aba ou sair exige novo login. Estatísticas e notificações fictícias foram removidas.
+
+### Login e rotas protegidas
+
+O formulário envia `POST /api/auth/login` com JSON `{ "email": "<email da conta>", "password": "<senha da conta>" }`. Resposta 200: `{ "token": "<JWT>", "user": { "id": "<uuid>", "email": "<email>", "name": "<nome ou null>", "role": "analyst|viewer|admin" } }`. Corpo inválido retorna 400; credenciais incorretas/conta inexistente retornam 401 com a mesma mensagem; falhas operacionais retornam 500. Login e refresh enviam `Cache-Control: no-store`.
+
+Sucesso guarda a sessão em memória e redireciona para `/lookup`. Erros de credenciais, rede e resposta inválida são exibidos no formulário; a submissão fica desabilitada enquanto aguarda. Lookup e watchlist redirecionam ao login quando não há sessão. Tokens do armazenamento legado são removidos ao entrar/sair.
+
+O cliente HTTP injeta Bearer automaticamente em Lookup, Watchlist e refresh. Exemplo de header para um cliente externo: `Authorization: Bearer <JWT recebido no login>`; não coloque o token em query string. Em 401, a sessão correspondente é apagada e a interface exige novo login; falhas temporárias de rede/429/5xx não encerram a sessão. Um 401 atrasado de uma sessão antiga não apaga um novo login.
+
+O middleware aceita apenas HS256 com issuer `kapitrace`, audience `kapitrace-web`, identidade válida e expiração de até 24h. Tokens ausentes, inválidos, expirados, com assinatura/algoritmo/claims incompatíveis retornam 401 e `WWW-Authenticate: Bearer`, incluindo tentativas de ler cache. Login/register e health continuam públicos. A verificação é stateless; excluir uma conta não revoga automaticamente um token já emitido. Memória reduz a persistência do token, mas não impede sua leitura por XSS ativo.
+
+Especificação: [SPEC de Auth e middleware](SPEC/2026-10-06-auth-and-middleware-reactivation.md). Referências: [JWT Best Current Practices — RFC 8725](https://www.rfc-editor.org/info/rfc8725/), [Bearer Token Usage — RFC 6750](https://www.rfc-editor.org/info/rfc6750/).
 
 ### Testes sem consumo de cotas
 
@@ -154,7 +167,7 @@ npm --prefix src/frontend run lint
 npm --prefix src/frontend run build
 ```
 
-Os testes usam `node:test`/`node:assert`, SQLite temporário separado por processo e interceptação nativa somente na fronteira HTTP externa. Tráfego externo não interceptado é bloqueado nos testes. Chrome/Chromium instalado é necessário para E2E; `CHROME_BIN` aponta para seu executável. O runner CDP/WebSocket é próprio, sem Playwright/Selenium. O fluxo HTTP anterior foi preservado em `tests/integration/workflow.test.ts`.
+Os testes usam `node:test`/`node:assert`, SQLite temporário separado por processo e interceptação nativa somente na fronteira HTTP externa. Tráfego externo não interceptado é bloqueado nos testes. Chrome/Chromium instalado é necessário para E2E; `CHROME_BIN` aponta para seu executável. O runner CDP/WebSocket é próprio, sem Playwright/Selenium. O fluxo HTTP anterior foi preservado em `tests/integration/workflow.test.ts`. Testes de Lookup autenticam uma conta real pelo endpoint de login; o helper anônimo permanece disponível para provar 401. A suíte cobre JWT isolado, login, HIT/MISS autenticados e E2E com erros de credenciais/rede, Bearer, 401, logout e recarga. Na validação desta etapa, **77 testes passaram**, além dos builds de backend/frontend e lint.
 
 ### Scripts Disponíveis (Backend)
 | Script        | Comando                  |
@@ -178,20 +191,20 @@ cloc . --exclude-dir=.git,.next,dist,coverage,metrics
 Relatório com dependências:
 
 ```text
-github.com/AlDanial/cloc v 2.06  T=4.55 s (1896.4 files/s, 559691.6 lines/s)
+github.com/AlDanial/cloc v 2.06  T=5.09 s (1695.7 files/s, 500043.5 lines/s)
 ---------------------------------------------------------------------------------------
 Language                             files          blank        comment           code
 ---------------------------------------------------------------------------------------
 JavaScript                            5301          57967          95220        1509742
 JSON                                   766             47              0         274422
-TypeScript                            1546          28108         213083         237781
-Markdown                               772          27851            432          75462
+TypeScript                            1552          28109         213088         238123
+Markdown                               774          27898            432          75529
 C/C++ Header                            11           1661           1255           9493
 C++                                     10            449            726           4704
 YAML                                   121            138             90           1630
 CSS                                      4            193             57           1159
 Bourne Shell                             4            180            114            842
-Text                                    18            158              0            664
+Text                                    19            172              0            712
 Python                                   8             30             27            562
 Windows Module Definition                5             83              0            451
 INI                                     17             69              0            280
@@ -206,7 +219,7 @@ Dockerfile                               1              9             17        
 XML                                      1              0              0             10
 CoffeeScript                             1              1              0              0
 ---------------------------------------------------------------------------------------
-SUM:                                  8627         117047         311052        2117974
+SUM:                                  8636         117109         311057        2118431
 ---------------------------------------------------------------------------------------
 ```
 

@@ -1,0 +1,605 @@
+
+> kapitrace-monorepo@1.0.0 test
+> npm --prefix src/backend test
+
+
+> backend@1.0.0 test
+> node --import tsx --test ../../tests/unit/*.test.ts ../../tests/integration/*.test.ts ../../tests/e2e/*.test.ts
+
+TAP version 13
+# Subtest: browser: login errors, memory JWT, protected lookup/cache, watchlist, 401 and reload
+not ok 1 - browser: login errors, memory JWT, protected lookup/cache, watchlist, 401 and reload
+  ---
+  duration_ms: 4974.268767
+  type: 'test'
+  location: '/home/thiagorm/Projects/dsai-ap1-kapitrace/tests/e2e/browser.test.ts:2:2273'
+  failureType: 'testCodeFailure'
+  error: |-
+    AssertionError [ERR_ASSERTION]: Every browser lookup must carry Bearer
+    Frontend output:
+    ▲ Next.js 16.3.8 (webpack)
+    - Local:         http://127.0.0.1:36223
+    - Network:       http://127.0.0.1:36223
+    ✓ Ready in 210ms
+    ✓ Running next.config.ts took 14ms
+    
+     GET /login 200 in 586ms (next.js: 510ms, application-code: 76ms)
+     GET /login 200 in 16ms (next.js: 1.4ms, application-code: 14ms)
+     GET /lookup 200 in 336ms (next.js: 320ms, application-code: 16ms)
+    [browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+     GET /dashboard 200 in 152ms (next.js: 139ms, application-code: 13ms)
+     GET /login 200 in 10ms (next.js: 4ms, application-code: 6ms)
+     GET /lookup 200 in 9ms (next.js: 1.9ms, application-code: 7ms)
+     GET /dashboard 200 in 8ms (next.js: 1.2ms, application-code: 7ms)
+     GET /lookup 200 in 8ms (next.js: 1.2ms, application-code: 7ms)
+    
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    TestContext.<anonymous> (/home/thiagorm/Projects/dsai-ap1-kapitrace/tests/e2e/browser.test.ts:151:27)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: public registration cannot request admin privileges and invalid JWT returns 401
+ok 2 - public registration cannot request admin privileges and invalid JWT returns 401
+  ---
+  duration_ms: 136.884921
+  type: 'test'
+  ...
+# Subtest: Integration Tests: Authentication Module (/api/auth)
+    # Subtest: should successfully register a new security analyst user
+    ok 1 - should successfully register a new security analyst user
+      ---
+      duration_ms: 89.824153
+      type: 'test'
+      ...
+    # Subtest: should reject duplicate user registration with status 400
+    ok 2 - should reject duplicate user registration with status 400
+      ---
+      duration_ms: 3.528568
+      type: 'test'
+      ...
+    # Subtest: should reject registration with invalid email or weak password
+    ok 3 - should reject registration with invalid email or weak password
+      ---
+      duration_ms: 3.585255
+      type: 'test'
+      ...
+    # Subtest: should authenticate user and return JWT session token on valid login
+    ok 4 - should authenticate user and return JWT session token on valid login
+      ---
+      duration_ms: 40.909323
+      type: 'test'
+      ...
+    # Subtest: should reject login attempt with incorrect credentials
+    ok 5 - should reject login attempt with incorrect credentials
+      ---
+      duration_ms: 41.304706
+      type: 'test'
+      ...
+    # Subtest: should reject malformed login bodies as 400 and unknown accounts as 401
+    ok 6 - should reject malformed login bodies as 400 and unknown accounts as 401
+      ---
+      duration_ms: 12.124394
+      type: 'test'
+      ...
+    # Subtest: should renew and refresh token via /api/auth/refresh when authenticated
+    ok 7 - should renew and refresh token via /api/auth/refresh when authenticated
+      ---
+      duration_ms: 3.281454
+      type: 'test'
+      ...
+    # Subtest: should reject token refresh with status 401 when no token is provided
+    ok 8 - should reject token refresh with status 401 when no token is provided
+      ---
+      duration_ms: 1.744327
+      type: 'test'
+      ...
+    1..8
+ok 3 - Integration Tests: Authentication Module (/api/auth)
+  ---
+  duration_ms: 207.996425
+  type: 'suite'
+  ...
+# Subtest: Lookup resilience at external HTTP boundary
+    # Subtest: uses one outbound request for concurrent identical misses, and none on HIT
+    ok 1 - uses one outbound request for concurrent identical misses, and none on HIT
+      ---
+      duration_ms: 64.991088
+      type: 'test'
+      ...
+    # Subtest: ignores mock-era/corrupt caches and refreshes expired real caches
+    ok 2 - ignores mock-era/corrupt caches and refreshes expired real caches
+      ---
+      duration_ms: 31.243387
+      type: 'test'
+      ...
+    # Subtest: serves stale real data without renewing timestamp, but refuses data older than 48h
+    ok 3 - serves stale real data without renewing timestamp, but refuses data older than 48h
+      ---
+      duration_ms: 15.905255
+      type: 'test'
+      ...
+    # Subtest: returns 503 without credentials rather than generating a mock score
+    ok 4 - returns 503 without credentials rather than generating a mock score
+      ---
+      duration_ms: 1.788931
+      type: 'test'
+      ...
+    # Subtest: honors 429 cooldown and Retry-After without retrying
+    ok 5 - honors 429 cooldown and Retry-After without retrying
+      ---
+      duration_ms: 2.958056
+      type: 'test'
+      ...
+    # Subtest: does not retry authentication failure or treat missing IOC as benign
+    ok 6 - does not retry authentication failure or treat missing IOC as benign
+      ---
+      duration_ms: 4.226899
+      type: 'test'
+      ...
+    # Subtest: retries transient 502 once and stops after the retry budget
+    ok 7 - retries transient 502 once and stops after the retry budget
+      ---
+      duration_ms: 283.142346
+      type: 'test'
+      ...
+    # Subtest: aborts stalled requests within deadline and releases single-flight state
+    ok 8 - aborts stalled requests within deadline and releases single-flight state
+      ---
+      duration_ms: 27.897972
+      type: 'test'
+      ...
+    # Subtest: rejects malformed/oversized JSON and keeps valid partial evidence
+    ok 9 - rejects malformed/oversized JSON and keeps valid partial evidence
+      ---
+      duration_ms: 10.094181
+      type: 'test'
+      ...
+    # Subtest: skips GreyNoise for IPv6 and uses canonical cache keys
+    ok 10 - skips GreyNoise for IPv6 and uses canonical cache keys
+      ---
+      duration_ms: 6.10087
+      type: 'test'
+      ...
+    # Subtest: rejects unsupported types and private IPs before external HTTP
+    ok 11 - rejects unsupported types and private IPs before external HTTP
+      ---
+      duration_ms: 4.308994
+      type: 'test'
+      ...
+    # Subtest: limits public request volume
+    ok 12 - limits public request volume
+      ---
+      duration_ms: 1.058338
+      type: 'test'
+      ...
+    1..12
+ok 4 - Lookup resilience at external HTTP boundary
+  ---
+  duration_ms: 592.156849
+  type: 'suite'
+  ...
+# Subtest: Integration Tests: Threat Lookup & Cache Validation (/api/lookup)
+    # Subtest: should return source: "api" (Cache MISS) on first lookup of an IP address
+    ok 1 - should return source: "api" (Cache MISS) on first lookup of an IP address
+      ---
+      duration_ms: 18.92579
+      type: 'test'
+      ...
+    # Subtest: should return source: "cache" (Cache HIT) on subsequent lookup of the same IP
+    ok 2 - should return source: "cache" (Cache HIT) on subsequent lookup of the same IP
+      ---
+      duration_ms: 5.207371
+      type: 'test'
+      ...
+    # Subtest: should perform domain lookup with Cache MISS then Cache HIT behavior
+    ok 3 - should perform domain lookup with Cache MISS then Cache HIT behavior
+      ---
+      duration_ms: 16.725787
+      type: 'test'
+      ...
+    # Subtest: should perform cryptographic hash lookup with valid algorithm identification
+    ok 4 - should perform cryptographic hash lookup with valid algorithm identification
+      ---
+      duration_ms: 8.979036
+      type: 'test'
+      ...
+    # Subtest: should reject malformed IP addresses with HTTP 400 Bad Request
+    ok 5 - should reject malformed IP addresses with HTTP 400 Bad Request
+      ---
+      duration_ms: 7.205064
+      type: 'test'
+      ...
+    # Subtest: should reject malformed domain names with HTTP 400 Bad Request
+    ok 6 - should reject malformed domain names with HTTP 400 Bad Request
+      ---
+      duration_ms: 3.743462
+      type: 'test'
+      ...
+    # Subtest: should reject invalid cryptographic hashes with HTTP 400 Bad Request
+    ok 7 - should reject invalid cryptographic hashes with HTTP 400 Bad Request
+      ---
+      duration_ms: 3.296031
+      type: 'test'
+      ...
+    1..7
+ok 5 - Integration Tests: Threat Lookup & Cache Validation (/api/lookup)
+  ---
+  duration_ms: 200.953775
+  type: 'suite'
+  ...
+# Subtest: Protected Lookup: authentication before validation, cache and providers
+    # Subtest: requires a token on every lookup route and does not create cache
+    ok 1 - requires a token on every lookup route and does not create cache
+      ---
+      duration_ms: 11.894291
+      type: 'test'
+      ...
+    # Subtest: rejects invalid, expired, wrongly signed and incomplete tokens before external HTTP
+    ok 2 - rejects invalid, expired, wrongly signed and incomplete tokens before external HTTP
+      ---
+      duration_ms: 12.054012
+      type: 'test'
+      ...
+    # Subtest: permits real-login JWT MISS/HIT, and refuses unauthenticated cache access
+    ok 3 - permits real-login JWT MISS/HIT, and refuses unauthenticated cache access
+      ---
+      duration_ms: 15.328272
+      type: 'test'
+      ...
+    1..3
+ok 6 - Protected Lookup: authentication before validation, cache and providers
+  ---
+  duration_ms: 182.315796
+  type: 'suite'
+  ...
+# Subtest: Integration Tests: Watchlist Management (/api/watchlist)
+    # Subtest: should block unauthenticated access to watchlist with HTTP 401
+    ok 1 - should block unauthenticated access to watchlist with HTTP 401
+      ---
+      duration_ms: 4.336064
+      type: 'test'
+      ...
+    # Subtest: should allow authenticated analyst to add a monitored indicator to watchlist
+    ok 2 - should allow authenticated analyst to add a monitored indicator to watchlist
+      ---
+      duration_ms: 6.362321
+      type: 'test'
+      ...
+    # Subtest: should reject adding invalid indicator formats to watchlist
+    ok 3 - should reject adding invalid indicator formats to watchlist
+      ---
+      duration_ms: 1.968257
+      type: 'test'
+      ...
+    # Subtest: should list all watchlist items belonging to authenticated user
+    ok 4 - should list all watchlist items belonging to authenticated user
+      ---
+      duration_ms: 3.00224
+      type: 'test'
+      ...
+    # Subtest: should prevent User 2 from deleting an item owned by User 1
+    ok 5 - should prevent User 2 from deleting an item owned by User 1
+      ---
+      duration_ms: 2.085678
+      type: 'test'
+      ...
+    # Subtest: should allow User 1 to delete their own watchlist item
+    ok 6 - should allow User 1 to delete their own watchlist item
+      ---
+      duration_ms: 8.682239
+      type: 'test'
+      ...
+    1..6
+ok 7 - Integration Tests: Watchlist Management (/api/watchlist)
+  ---
+  duration_ms: 255.57222
+  type: 'suite'
+  ...
+# Subtest: Integration SOC Workflow: Security Operations Center (SOC) Lifecycle
+    # Subtest: Step 1: System Health Inspection
+    ok 1 - Step 1: System Health Inspection
+      ---
+      duration_ms: 24.507334
+      type: 'test'
+      ...
+    # Subtest: Step 2: Security Analyst Onboarding & Authentication
+    ok 2 - Step 2: Security Analyst Onboarding & Authentication
+      ---
+      duration_ms: 100.014805
+      type: 'test'
+      ...
+    # Subtest: Step 3: Multi-Vector Threat Intelligence Search & Cache Lifecycle
+    ok 3 - Step 3: Multi-Vector Threat Intelligence Search & Cache Lifecycle
+      ---
+      duration_ms: 41.724664
+      type: 'test'
+      ...
+    # Subtest: Step 4: Threat Escalation to Watchlist Monitoring
+    ok 4 - Step 4: Threat Escalation to Watchlist Monitoring
+      ---
+      duration_ms: 24.762723
+      type: 'test'
+      ...
+    # Subtest: Step 5: Session Renewal and Token Refresh
+    ok 5 - Step 5: Session Renewal and Token Refresh
+      ---
+      duration_ms: 2.306242
+      type: 'test'
+      ...
+    1..5
+ok 8 - Integration SOC Workflow: Security Operations Center (SOC) Lifecycle
+  ---
+  duration_ms: 204.796333
+  type: 'suite'
+  ...
+# Subtest: authenticate: JWT validation and identity
+    # Subtest: accepts only a valid token and calls next once with a typed identity
+    ok 1 - accepts only a valid token and calls next once with a typed identity
+      ---
+      duration_ms: 2.964599
+      type: 'test'
+      ...
+    # Subtest: rejects absent, malformed and oversized Bearer headers without next
+    ok 2 - rejects absent, malformed and oversized Bearer headers without next
+      ---
+      duration_ms: 0.418195
+      type: 'test'
+      ...
+    # Subtest: rejects expired, future, unsigned, tampered and wrongly signed tokens
+    ok 3 - rejects expired, future, unsigned, tampered and wrongly signed tokens
+      ---
+      duration_ms: 1.116597
+      type: 'test'
+      ...
+    # Subtest: rejects incompatible issuer/audience and incomplete identity/expiration claims
+    ok 4 - rejects incompatible issuer/audience and incomplete identity/expiration claims
+      ---
+      duration_ms: 1.6449
+      type: 'test'
+      ...
+    # Subtest: continues to enforce role authorization separately
+    ok 5 - continues to enforce role authorization separately
+      ---
+      duration_ms: 0.29287
+      type: 'test'
+      ...
+    1..5
+ok 9 - authenticate: JWT validation and identity
+  ---
+  duration_ms: 7.258263
+  type: 'suite'
+  ...
+# Subtest: Client session and mandatory Bearer transport
+    # Subtest: keeps a private memory session, reports no server session and notifies/unsubscribes
+    ok 1 - keeps a private memory session, reports no server session and notifies/unsubscribes
+      ---
+      duration_ms: 0.789343
+      type: 'test'
+      ...
+    # Subtest: does not call protected endpoints without a token
+    ok 2 - does not call protected endpoints without a token
+      ---
+      duration_ms: 9.698538
+      type: 'test'
+      ...
+    # Subtest: injects the current token automatically and replaces divergent caller headers
+    ok 3 - injects the current token automatically and replaces divergent caller headers
+      ---
+      duration_ms: 2.806501
+      type: 'test'
+      ...
+    # Subtest: clears memory on protected 401 even when body is invalid JSON
+    ok 4 - clears memory on protected 401 even when body is invalid JSON
+      ---
+      duration_ms: 0.296207
+      type: 'test'
+      ...
+    # Subtest: retains session for network, rate limits and server failures
+    ok 5 - retains session for network, rate limits and server failures
+      ---
+      duration_ms: 0.792359
+      type: 'test'
+      ...
+    # Subtest: allows login without existing session and handles malformed JSON
+    ok 6 - allows login without existing session and handles malformed JSON
+      ---
+      duration_ms: 0.693001
+      type: 'test'
+      ...
+    1..6
+ok 10 - Client session and mandatory Bearer transport
+  ---
+  duration_ms: 15.707143
+  type: 'suite'
+  ...
+# Subtest: parses Retry-After seconds/dates with safe bounded defaults
+ok 11 - parses Retry-After seconds/dates with safe bounded defaults
+  ---
+  duration_ms: 0.757282
+  type: 'test'
+  ...
+# Subtest: refuses arbitrary hosts and non-HTTPS URLs before fetch
+ok 12 - refuses arbitrary hosts and non-HTTPS URLs before fetch
+  ---
+  duration_ms: 0.786348
+  type: 'test'
+  ...
+# Subtest: requires explicit JWT secret and valid configuration
+ok 13 - requires explicit JWT secret and valid configuration
+  ---
+  duration_ms: 0.286819
+  type: 'test'
+  ...
+# Subtest: aborts stalled response bodies and refuses cross-host redirects
+ok 14 - aborts stalled response bodies and refuses cross-host redirects
+  ---
+  duration_ms: 36.183586
+  type: 'test'
+  ...
+# Subtest: canonicalizes IPv6, domain IDN/root dot and all supported hash sizes
+ok 15 - canonicalizes IPv6, domain IDN/root dot and all supported hash sizes
+  ---
+  duration_ms: 5.410784
+  type: 'test'
+  ...
+# Subtest: rejects private/special IPs including mapped IPv6 and injection syntax
+ok 16 - rejects private/special IPs including mapped IPv6 and injection syntax
+  ---
+  duration_ms: 0.813848
+  type: 'test'
+  ...
+# Subtest: Evidence-based ThreatScore
+    # Subtest: does not classify missing or non-finite evidence as clean
+    ok 1 - does not classify missing or non-finite evidence as clean
+      ---
+      duration_ms: 0.723569
+      type: 'test'
+      ...
+    # Subtest: renormalizes available weights and reports coverage
+    ok 2 - renormalizes available weights and reports coverage
+      ---
+      duration_ms: 0.195827
+      type: 'test'
+      ...
+    # Subtest: uses actual response shapes, not words in the indicator
+    ok 3 - uses actual response shapes, not words in the indicator
+      ---
+      duration_ms: 0.739238
+      type: 'test'
+      ...
+    # Subtest: preserves exact tier boundaries and clamps scores
+    ok 4 - preserves exact tier boundaries and clamps scores
+      ---
+      duration_ms: 0.262944
+      type: 'test'
+      ...
+    # Subtest: requires finite CVSS evidence and deduplicates ports
+    ok 5 - requires finite CVSS evidence and deduplicates ports
+      ---
+      duration_ms: 0.173345
+      type: 'test'
+      ...
+    # Subtest: rejects malformed schemas and avoids division by zero
+    ok 6 - rejects malformed schemas and avoids division by zero
+      ---
+      duration_ms: 0.184576
+      type: 'test'
+      ...
+    1..6
+ok 17 - Evidence-based ThreatScore
+  ---
+  duration_ms: 2.924934
+  type: 'suite'
+  ...
+# Subtest: Unit Tests: Input Validators (RFC-compliant)
+    # Subtest: IPv4 Validation (RFC 791)
+        # Subtest: should validate canonical public and private IPv4 addresses
+        ok 1 - should validate canonical public and private IPv4 addresses
+          ---
+          duration_ms: 1.152224
+          type: 'test'
+          ...
+        # Subtest: should correctly classify IPv4 private, loopback, multicast and link-local ranges
+        ok 2 - should correctly classify IPv4 private, loopback, multicast and link-local ranges
+          ---
+          duration_ms: 0.208111
+          type: 'test'
+          ...
+        # Subtest: should strictly reject invalid IPv4 addresses and edge cases
+        ok 3 - should strictly reject invalid IPv4 addresses and edge cases
+          ---
+          duration_ms: 0.282861
+          type: 'test'
+          ...
+        1..3
+    ok 1 - IPv4 Validation (RFC 791)
+      ---
+      duration_ms: 2.215702
+      type: 'suite'
+      ...
+    # Subtest: IPv6 Validation (RFC 4291 / RFC 5952)
+        # Subtest: should validate canonical and compressed IPv6 addresses
+        ok 1 - should validate canonical and compressed IPv6 addresses
+          ---
+          duration_ms: 4.242018
+          type: 'test'
+          ...
+        # Subtest: should reject malformed IPv6 addresses
+        ok 2 - should reject malformed IPv6 addresses
+          ---
+          duration_ms: 0.228048
+          type: 'test'
+          ...
+        1..2
+    ok 2 - IPv6 Validation (RFC 4291 / RFC 5952)
+      ---
+      duration_ms: 4.635017
+      type: 'suite'
+      ...
+    # Subtest: Cryptographic Hash Validation (MD5, SHA-1, SHA-256)
+        # Subtest: should accept valid MD5, SHA-1 and SHA-256 hashes in lower and upper case
+        ok 1 - should accept valid MD5, SHA-1 and SHA-256 hashes in lower and upper case
+          ---
+          duration_ms: 0.352012
+          type: 'test'
+          ...
+        # Subtest: should reject invalid hashes (wrong lengths, non-hex characters)
+        ok 2 - should reject invalid hashes (wrong lengths, non-hex characters)
+          ---
+          duration_ms: 0.267833
+          type: 'test'
+          ...
+        1..2
+    ok 3 - Cryptographic Hash Validation (MD5, SHA-1, SHA-256)
+      ---
+      duration_ms: 0.797729
+      type: 'suite'
+      ...
+    # Subtest: Domain FQDN Validation (RFC 1035 / RFC 1123)
+        # Subtest: should validate RFC compliant domain names and subdomains
+        ok 1 - should validate RFC compliant domain names and subdomains
+          ---
+          duration_ms: 0.453041
+          type: 'test'
+          ...
+        # Subtest: should reject non-compliant domain names
+        ok 2 - should reject non-compliant domain names
+          ---
+          duration_ms: 0.196579
+          type: 'test'
+          ...
+        1..2
+    ok 4 - Domain FQDN Validation (RFC 1035 / RFC 1123)
+      ---
+      duration_ms: 0.800473
+      type: 'suite'
+      ...
+    # Subtest: detectIndicatorType
+        # Subtest: should detect the correct indicator type automatically
+        ok 1 - should detect the correct indicator type automatically
+          ---
+          duration_ms: 0.233449
+          type: 'test'
+          ...
+        1..1
+    ok 5 - detectIndicatorType
+      ---
+      duration_ms: 0.295475
+      type: 'suite'
+      ...
+    1..5
+ok 18 - Unit Tests: Input Validators (RFC-compliant)
+  ---
+  duration_ms: 9.394296
+  type: 'suite'
+  ...
+1..18
+# tests 76
+# suites 15
+# pass 75
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10672.717169

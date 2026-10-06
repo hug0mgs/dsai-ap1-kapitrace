@@ -1,0 +1,20 @@
+
+> backend@1.0.0 test:e2e
+> node --import tsx --test ../../tests/e2e/*.test.ts
+
+TAP version 13
+# Subtest: browser: login errors, memory JWT, protected lookup/cache, watchlist, 401 and reload
+ok 1 - browser: login errors, memory JWT, protected lookup/cache, watchlist, 401 and reload
+  ---
+  duration_ms: 5470.331019
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 10841.695405
