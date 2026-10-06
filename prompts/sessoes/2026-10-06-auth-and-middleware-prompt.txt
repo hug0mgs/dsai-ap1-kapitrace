@@ -1,0 +1,62 @@
+Atue como um Engenheiro de Software Senior especialista em SDD (Specification-Driven Development) e Segurança Web. Sua missão é conectar o formulário de login no frontend ao endpoint de autenticação do backend, reativar o middleware de autenticação nas rotas protegidas e garantir a passagem correta do token JWT, mantendo conformidade estrita com a arquitetura e os requisitos do repositório.
+
+===============================================================================
+1. TAREFA PRINCIPAL: AUTENTICAÇÃO E REATIVAÇÃO DO MIDDLEWARE
+===============================================================================
+
+1. Integração do Login no Frontend (`/login/page.tsx`):
+   - Conectar o formulário de login ao endpoint `POST /api/auth/login`.
+   - Salvar o token JWT recebido (em `localStorage`, `cookies` HTTP-only ou estado global seguro).
+   - Tratar estados de erro (credenciais inválidas, falhas de rede) e redirecionamento após o login bem-sucedido.
+
+2. Reativação do Middleware no Backend (`lookup.route.ts`):
+   - Reativar o middleware `authenticate` na rota `lookup.route.ts`.
+   - Garantir que as requisições do frontend para a rota de lookup enviem obrigatoriamente o header `Authorization: Bearer <token>`.
+
+===============================================================================
+2. REGRAS DE SDD (SPECIFICATION-DRIVEN DEVELOPMENT) E COMMITS
+===============================================================================
+
+1. Atualização ou Criação da SPEC Datada:
+   - ANTES de alterar o código de login ou middleware, crie ou atualize o arquivo de especificação em `SPEC/` com a data atual (ex: `SPEC/2026-10-06-auth-and-middleware-reactivation.md`).
+   - A SPEC deve detalhar:
+     - O contrato da API `POST /api/auth/login` (request/response body e status codes).
+     - Mecanismo de armazenamento do JWT e injeção do header `Authorization: Bearer`.
+     - Comportamento do middleware `authenticate` diante de tokens ausentes, expirados ou inválidos.
+
+2. Ordem do Commit no Git:
+   - O commit da nova SPEC DEVE ser feito OBRIGATORIAMENTE ANTES da implementação do código funcional.
+
+3. Trailers Obrigatórios nos Commits:
+   - Todo commit deve conter obrigatoriamente os trailers git ao final da mensagem:
+
+     Agent: <Nome-e-Modelo-do-Agente-IA-Utilizado>
+     Spec: SPEC/<nome-do-arquivo-de-spec>.md
+
+===============================================================================
+3. ESTRUTURA E COBERTURA DE TESTES
+===============================================================================
+
+- Testes Unitários (`tests/unit/`):
+  - Testar a validação do token JWT e o comportamento isolado do middleware `authenticate`.
+- Testes de Integração (`tests/integration/`):
+  - Testar o endpoint `POST /api/auth/login`.
+  - Testar o endpoint de lookup com o middleware ativado (garantir status 401 sem token / token inválido, e status 200 com token válido e cache hit/miss).
+- Testes E2E (`tests/e2e/`):
+  - Testar o fluxo completo de login na interface `/login/page.tsx`, salvamento do token, navegação até a busca de lookup e retorno dos dados.
+
+===============================================================================
+4. HIGIENE DO REPOSITÓRIO E AUDITORIA
+===============================================================================
+
+- Auditoria do `README.md`: Preserve o conteúdo existente e garanta a presença dos itens obrigatórios (URL pública clicável no topo, tabela de Ferramentas/Modelos de IA e bloco com a saída atualizada do `cloc` contabilizando pelo menos 100.000 linhas).
+- SEGURANÇA MÁXIMA: NENHUM segredo, chave privada de JWT ou credencial deve ser commitado. Utilize variáveis de ambiente para o segredo do JWT (`JWT_SECRET`).
+- Registro de Sessões: Salve os logs e exportações brutas dos prompts na pasta `prompts/sessoes/`.
+
+===============================================================================
+SUA TAREFA INICIAL
+===============================================================================
+
+1. Crie/atualize a SPEC em `SPEC/2026-10-06-auth-and-middleware-reactivation.md` cobrindo o contrato de login, manipulação do JWT e reativação do middleware.
+2. Realize o commit da SPEC antes de modificar o código funcional.
+3. Conecte o formulário `/login/page.tsx`, reative o middleware em `lookup.route.ts` e adapte a suíte de testes em `tests/`.
