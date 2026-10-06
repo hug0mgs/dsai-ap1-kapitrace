@@ -39,3 +39,9 @@ faça os commits das outras alterações e faça o push (altere o horario pra 23
 faça os commits das outras alterações e faça o push (altere o horario pra 23:44:57 5 de outubro dos commits)
 
 A primeira operação foi interrompida antes de produzir alterações. Verificação posterior: árvore limpa, sem outras alterações para commitar; commit da SPEC ainda não publicado. Data de autoria e de commit solicitada: 2026-10-05T23:44:57-03:00. A data da SPEC permanece a data real da sessão (2026-10-06). Envio solicitado para origin/develop via push normal.
+
+## Implementação — prompt literal
+
+implemente as alterações (sem usar biblieotecas externas faça você msm)
+
+Decisão: nenhuma dependência nova; preservar frameworks existentes e implementar integrações, resiliência e automação com APIs nativas.

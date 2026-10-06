@@ -112,3 +112,7 @@ Spec: SPEC/2026-10-06-real-api-integration.md
 ```
 
 Critério de passagem desta etapa: commit da SPEC confirmado por hash, nenhum arquivo funcional alterado. Implementação posterior sempre referencia este commit e SPEC.
+
+## 11. Restrição adicional do usuário — 2026-10-06
+
+Implementar sem novas bibliotecas externas. Manter frameworks já existentes do repositório (Express, Prisma, Next/React e Auth), usar fetch/AbortController/URL, node:net, node:url, node:test, node:assert e carregamento de ambiente nativo do Node 22. HTTP, retries, limites e testes de navegador via Chrome DevTools Protocol serão implementados localmente, sem Axios, SDKs, VCR, Playwright ou bibliotecas de cache. Configuração de intervalo por provedor via `<PROVIDER>_MIN_INTERVAL_MS`; capacidade global EXTERNAL_API_MAX_CONCURRENCY e limite público LOOKUP_REQUESTS_PER_MINUTE. Modificadores sem evidência estruturada disponível ficam inativos, inclusive phishing URLScan (somente busca de contexto nesta versão).
