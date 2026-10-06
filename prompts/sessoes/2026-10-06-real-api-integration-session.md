@@ -45,3 +45,23 @@ A primeira operação foi interrompida antes de produzir alterações. Verifica�
 implemente as alterações (sem usar biblieotecas externas faça você msm)
 
 Decisão: nenhuma dependência nova; preservar frameworks existentes e implementar integrações, resiliência e automação com APIs nativas.
+
+## Conclusão da implementação
+
+Backend: 8f7c94c. Frontend/E2E: da1a7d7. Complemento da SPEC anterior ao código: c830c34. Commits com autoria e committer em 2026-10-05T23:44:57-03:00 por solicitação explícita do usuário; arquivos continuam datados pela sessão real de 2026-10-06.
+
+Implementados sete adaptadores HTTP nativos, retries/cooldown/timeouts, score por evidência com normalização de pesos, cache versionado/TTL/stale/single-flight, validação de IOC e proteção de cotas. Removidos mocks de busca/dashboard e notificações fictícias. Autenticação e Watchlist da interface conectadas ao backend; cadastro público não atribui admin; JWT sem fallback fixo. Nenhuma biblioteca nova ou chave real usada. Fontes de Google Fonts foram substituídas por fontes do sistema para build independente de downloads.
+
+Validação: 61 testes passaram, zero falhas/skip; inclui navegador Chrome headless com CDP/WebSocket nativos. Backend build, frontend build e lint passaram. As APIs reais não foram acessadas com credenciais: fixtures são interceptadas somente no HTTP externo. Operação real depende das chaves e plano do operador; OTX/URLScan fornecem contexto nesta versão.
+
+Relatórios brutos de execução disponíveis junto a este registro (testes/build/lint). README preservado e corrigido com configuração, ferramentas/modelos, contratos e métricas; escopo cloc com dependências supera 100.000 linhas, identificado separadamente da autoria. Ignore de variantes de .env verificado, exemplos vazios e scanner de segredos staged aprovado.
+
+## Continuação — demais prompts literais
+
+e a alteração dos dados mockados ocorreu?
+
+## Resposta literal do assistente à pergunta
+
+Não. Foi concluída apenas a etapa inicial: inspeção dos mocks, criação da SPEC e commit/push.
+
+Os dados mockados continuam no backend e no frontend. A integração real com as APIs, as variáveis de ambiente e a adaptação dos testes ainda não foram implementadas.
