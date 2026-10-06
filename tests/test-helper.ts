@@ -1,15 +1,10 @@
-import path from 'node:path';
 import assert from 'node:assert/strict';
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { execFileSync } from 'node:child_process';
+import { removeTestSchema } from './postgres-helper';
 import { installHttpFixtures } from './http-fixtures';
 import { Server } from 'node:http';
 
-const directory = mkdtempSync(path.join(tmpdir(), 'kapitrace-test-'));
-process.env.DATABASE_URL = `file:${path.join(directory, 'test.db')}`;
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = randomBytes(48).toString('hex');
 process.env.LOOKUP_REQUESTS_PER_MINUTE = '10000';
@@ -18,10 +13,8 @@ for (const provider of ['ABUSEIPDB','VIRUSTOTAL','SHODAN','GREYNOISE','OTX','URL
   process.env[`${provider}_MIN_INTERVAL_MS`] = '0';
 }
 installHttpFixtures();
-execFileSync(process.execPath, [path.resolve(__dirname, '../src/backend/node_modules/prisma/build/index.js'), 'db', 'push', '--skip-generate'], { cwd: path.resolve(__dirname, '../src/backend'), env: process.env, stdio: 'pipe' });
 const { app } = require('../src/backend/src/app') as typeof import('../src/backend/src/app');
 export const prisma = (require('../src/backend/src/shared/prisma') as typeof import('../src/backend/src/shared/prisma')).default;
-process.on('exit', () => rmSync(directory, { recursive: true, force: true }));
 
 export interface TestServer {
   url: string;
@@ -49,6 +42,7 @@ export function startTestServer(): Promise<TestServer> {
             server.close(() => done());
           });
           await prisma.$disconnect();
+          await removeTestSchema();
         },
         fetch: (path: string, init: RequestInit = {}) => {
           const targetUrl = path.startsWith('http')

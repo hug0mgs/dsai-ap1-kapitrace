@@ -1,6 +1,7 @@
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -28,6 +29,8 @@ model AuditLog {
   createdAt DateTime @default(now())
   
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model Watchlist {
@@ -38,6 +41,8 @@ model Watchlist {
   createdAt DateTime @default(now())
   
   user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 model IpCache {

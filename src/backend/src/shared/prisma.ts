@@ -1,18 +1,8 @@
 import { PrismaClient } from '@prisma/client';
-import path from 'path';
+import { databaseUrl } from './config';
 
-// Guarantee that SQLite database path resolves correctly from any current working directory
-if (!process.env.DATABASE_URL || process.env.DATABASE_URL === 'file:./dev.db') {
-  const dbPath = path.resolve(__dirname, '../../prisma/dev.db');
-  process.env.DATABASE_URL = `file:${dbPath}`;
-}
-
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL
-    }
-  }
-});
-
+const url = databaseUrl();
+const runtime = globalThis as typeof globalThis & { kapitracePrisma?: PrismaClient };
+const prisma = runtime.kapitracePrisma ?? new PrismaClient({ datasources: { db: { url } } });
+if (process.env.NODE_ENV !== 'production') runtime.kapitracePrisma = prisma;
 export default prisma;
