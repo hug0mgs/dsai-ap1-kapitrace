@@ -11,7 +11,7 @@
 
 | Ferramenta / Plataforma | Modelo | Função no Projeto |
 | ----------------------- | ------ | ----------------- |
-| **Codex** | **GPT-6** | SPEC datada, migração de mocks para HTTP nativo, resiliência/cache, segurança, autenticação Bearer/JWT e testes de interface via Chrome DevTools Protocol |
+| **Codex** | **GPT-6** | SPEC datada, migração de mocks para HTTP nativo, resiliência/cache, segurança, autenticação Bearer/JWT, migração Supabase/PostgreSQL e testes nativos de banco/interface |
 | **Antigravity IDE**     | **Gemini 3.8 Flash** | Especificação Formal (SDD), Arquitetura de Software, Implementação do Motor de ThreatScore, Validadores RFC e Automação da Suíte de Testes (Unit, Integration, E2E) |
 | **Claude Code**         | Claude 3.5 Sonnet | Prototipação e Scaffolding Inicial |
 | **Devin AI**            | Devin Engine | Configurações de Ambiente e Integração Contínua |
@@ -25,7 +25,7 @@
 | **Frontend**   | Next.js 16 (React 19) + TypeScript           |
 | **Estilização**| Vanilla CSS — Dark Mode Cybersec Theme       |
 | **Backend**    | Node.js + Express.js + TypeScript            |
-| **Banco**      | SQLite + Prisma ORM (schema atual)                   |
+| **Banco**      | PostgreSQL + Prisma ORM (Supabase)                   |
 | **Auth**       | JWT + bcrypt + RBAC (admin/analyst/viewer)    |
 | **Cache**      | Database-layer cache com TTL (Prisma)        |
 
@@ -53,7 +53,8 @@ dsai-ap1-KapiTrace/
 ├── SPEC/                        # Especificações técnicas e SDD
 │   ├── 2026-10-01-threat-analyzer.md
 │   ├── 2026-10-06-real-api-integration.md
-│   └── 2026-10-06-auth-and-middleware-reactivation.md
+│   ├── 2026-10-06-auth-and-middleware-reactivation.md
+│   └── 2026-10-06-supabase-postgresql-migration.md
 │
 ├── src/
 │   ├── frontend/                # Next.js 15 App Router
@@ -95,8 +96,10 @@ dsai-ap1-KapiTrace/
 cd src/backend
 cp .env.example .env   # Preencha JWT_SECRET, DATABASE_URL e as chaves desejadas
 npm install
-npm run db:generate    # Gera o cliente Prisma
-npm run db:push        # Gera tabelas no banco de dados
+npm run db:generate    # Gera o cliente Prisma PostgreSQL
+npm run db:validate    # Valida schema e configuração
+npm run db:deploy      # Aplica migrations versionadas no Supabase
+npm run db:check       # Verifica conexão, estrutura e permissões
 npm run dev            # Dev server com hot-reload (tsx watch)
 ```
 
@@ -134,6 +137,40 @@ Somente a URL do backend fica em `NEXT_PUBLIC_API_BASE_URL`. Todas as variantes 
 
 Timeout por fonte: 5s; deadline total: 10s; no máximo um retry para rede/502/503/504. 429 e 503 ativam cooldown conforme `Retry-After`. Intervalos por fornecedor e capacidade global são configuráveis no exemplo; ajuste às cotas da sua conta. O Lookup autenticado limita 30 consultas/minuto por IP, após validar o JWT. Limites e single-flight são locais a cada processo; múltiplas instâncias exigem coordenação compartilhada.
 
+### Supabase/PostgreSQL
+
+A migração está na branch **`stagging`**. O backend mantém Prisma **5.22**, Auth JWT/bcrypt e os mesmos models; não usa Supabase Auth ou SDK e nenhuma biblioteca Node nova foi adicionada. IDs permanecem `text`; os payloads de cache permanecem JSON serializado em `text`.
+
+No painel Supabase, clique em **Connect → Connection String → URI** e copie as conexões para `src/backend/.env` local:
+
+- `DATABASE_URL`: Transaction Pooler (6543), com `pgbouncer=true` e `sslmode=require`.
+- `DIRECT_URL`: Session Pooler (5432), ou conexão direta acessível, com `sslmode=require`, para migrations.
+
+Use host/usuário exatos do painel e senha do banco codificada para URL; a publishable/anon key não é a senha PostgreSQL. Campos no exemplo ficam vazios. Cadastre as URLs somente no projeto **backend** da Vercel, junto ao `JWT_SECRET` e às chaves privadas. O frontend precisa somente de `NEXT_PUBLIC_API_BASE_URL` para falar com nossa API. O runtime não possui fallback SQLite e reutiliza Prisma Client por processo.
+
+Para um banco novo:
+
+```bash
+npm --prefix src/backend run db:generate
+npm --prefix src/backend run db:validate
+npm --prefix src/backend run db:deploy
+npm --prefix src/backend run db:check
+```
+
+Se as **sete tabelas já foram criadas pelo SQL Editor**, o deploy recusa criar novamente antes do baseline. Revise o schema e então use:
+
+```bash
+npm --prefix src/backend run db:baseline
+npm --prefix src/backend run db:deploy
+npm --prefix src/backend run db:check
+```
+
+O baseline confere colunas/tipos/nullabilidade, PKs, email único e FKs e registra somente a migration inicial como aplicada. A migration de segurança continua sendo executada pelo deploy. Se houver tabelas incompletas/incompatíveis, o baseline falha; não apaga nem recria dados. Migrations em `src/backend/prisma/migrations/` criam a estrutura, habilitam RLS e revogam acesso de PUBLIC/anon/authenticated. O backend precisa de um role PostgreSQL autorizado a acessar as tabelas e a passar RLS (owner/BYPASSRLS); o JWT do projeto não autentica a Data API Supabase. Os wrappers administrativos não imprimem URLs ou erros brutos de conexão.
+
+Dados do SQLite **não são copiados automaticamente**. O arquivo antigo pode ser mantido para exportação/migração de dados em trabalho separado. Git push publica código no GitHub; aplicar alterações no Supabase depende de `db:deploy` com uma conexão configurada. Depois, cadastro/login/watchlist feitos pela interface usam PostgreSQL.
+
+Documentação: [Prisma no Supabase](https://supabase.com/docs/guides/database/prisma), [Transaction Pooler e prepared statements](https://supabase.com/docs/guides/troubleshooting/disabling-prepared-statements-qL8lEL).
+
 ### Score e cache real
 
 `GET /api/lookup/{ip|domain|hash}/{indicador}` exige `Authorization: Bearer <token>` e aceita IPv4/IPv6 públicos, MD5/SHA-1/SHA-256 e domínios normalizados. Sem token válido, retorna 401 antes de validação, cache ou chamadas externas. Com autenticação válida, tipos não suportados e entradas inválidas retornam 400 antes de consultar fornecedores. O ThreatScore mantém pesos 35/40/15/10 e renormaliza apenas métricas disponíveis; cobertura de evidência acompanha a análise. Sem métrica válida, o score é nulo, nunca zero por indisponibilidade.
@@ -167,7 +204,9 @@ npm --prefix src/frontend run lint
 npm --prefix src/frontend run build
 ```
 
-Os testes usam `node:test`/`node:assert`, SQLite temporário separado por processo e interceptação nativa somente na fronteira HTTP externa. Tráfego externo não interceptado é bloqueado nos testes. Chrome/Chromium instalado é necessário para E2E; `CHROME_BIN` aponta para seu executável. O runner CDP/WebSocket é próprio, sem Playwright/Selenium. O fluxo HTTP anterior foi preservado em `tests/integration/workflow.test.ts`. Testes de Lookup autenticam uma conta real pelo endpoint de login; o helper anônimo permanece disponível para provar 401. A suíte cobre JWT isolado, login, HIT/MISS autenticados e E2E com erros de credenciais/rede, Bearer, 401, logout e recarga. Na validação desta etapa, **77 testes passaram**, além dos builds de backend/frontend e lint.
+Integração/E2E exigem Docker em execução (imagem `postgres:16`) ou `TEST_DATABASE_URL` apontando explicitamente a PostgreSQL de testes. Unitários não exigem banco. Os testes nunca usam `DATABASE_URL` de produção como fallback e recusam endpoints Supabase.
+
+Os testes usam `node:test`/`node:assert`, PostgreSQL 16 real em container Docker temporário e um schema exclusivo por processo. O container publica somente em loopback, não usa volume e tem senha aleatória em memória. O runner aplica as mesmas migrations do deploy e remove somente os schemas/container criados para o teste. A interceptação nativa permanece somente na fronteira HTTP externa. Tráfego externo não interceptado é bloqueado nos testes. Chrome/Chromium instalado é necessário para E2E; `CHROME_BIN` aponta para seu executável. O runner CDP/WebSocket é próprio, sem Playwright/Selenium. O fluxo HTTP anterior foi preservado em `tests/integration/workflow.test.ts`. Testes de Lookup autenticam uma conta real pelo endpoint de login; o helper anônimo permanece disponível para provar 401. A suíte cobre JWT isolado, login, HIT/MISS autenticados e E2E com erros de credenciais/rede, Bearer, 401, logout e recarga. Na validação desta etapa, **84 testes passaram**, além dos builds de backend/frontend e lint.
 
 ### Scripts Disponíveis (Backend)
 | Script        | Comando                  |
@@ -175,7 +214,11 @@ Os testes usam `node:test`/`node:assert`, SQLite temporário separado por proces
 | `npm run dev` | `tsx watch src/server.ts`|
 | `npm run build` | `tsc`                 |
 | `npm run start` | `node dist/server.js` |
-| `npm run db:push` | `prisma db push`   |
+| `npm run db:deploy` | Aplica migrations PostgreSQL versionadas |
+| `npm run db:push` | Alias compatível de `db:deploy`; não executa reset/diff destrutivo |
+| `npm run db:baseline` | Adota tabelas existentes após conferir estrutura |
+| `npm run db:validate` | Valida schema/configuração |
+| `npm run db:check` | Verifica conexão, tabelas, RLS e permissões |
 | `npm run db:studio` | `prisma studio`  |
 | `npm test`    | Executa suíte de testes unitários, integração e E2E |
 
@@ -191,14 +234,14 @@ cloc . --exclude-dir=.git,.next,dist,coverage,metrics
 Relatório com dependências:
 
 ```text
-github.com/AlDanial/cloc v 2.06  T=5.09 s (1695.7 files/s, 500043.5 lines/s)
+github.com/AlDanial/cloc v 2.06  T=5.03 s (1717.8 files/s, 506027.9 lines/s)
 ---------------------------------------------------------------------------------------
 Language                             files          blank        comment           code
 ---------------------------------------------------------------------------------------
-JavaScript                            5301          57967          95220        1509742
-JSON                                   766             47              0         274422
-TypeScript                            1552          28109         213088         238123
-Markdown                               774          27898            432          75529
+JavaScript                            5304          57970          95225        1509960
+JSON                                   766             47              0         274426
+TypeScript                            1555          28124         213100         238273
+Markdown                               776          27945            432          75611
 C/C++ Header                            11           1661           1255           9493
 C++                                     10            449            726           4704
 YAML                                   121            138             90           1630
@@ -211,15 +254,17 @@ INI                                     17             69              0        
 Go                                       1             23              7            249
 SVG                                     28              0              0            127
 PHP                                      1             13             19            124
-Prisma Schema                            2             22              0            116
+Prisma Schema                            2             26              0            122
+SQL                                      2             18             15             91
 make                                     3             24              4             48
 Bourne Again Shell                       2             11              1             43
 HTML                                     4             10              0             34
 Dockerfile                               1              9             17             31
 XML                                      1              0              0             10
+TOML                                     1              0              0              1
 CoffeeScript                             1              1              0              0
 ---------------------------------------------------------------------------------------
-SUM:                                  8636         117109         311057        2118431
+SUM:                                  8647         117196         311089        2118983
 ---------------------------------------------------------------------------------------
 ```
 
