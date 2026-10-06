@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import prisma from '../../shared/prisma';
 import { AuthRequest } from '../../middleware/auth';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'KapiTrace_secret_key';
+import { jwtSecret } from '../../shared/config';
 
 /**
  * Validate password security standards:
@@ -31,7 +31,7 @@ function isValidEmail(email: string): boolean {
 
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password, name, role = 'analyst' } = req.body;
+    const { email, password, name } = req.body;
 
     if (!email || !isValidEmail(email)) {
       res.status(400).json({ error: 'Valid email address is required' });
@@ -58,7 +58,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         email: normalizedEmail,
         password: hashedPassword,
         name: name ? String(name).trim() : null,
-        role: ['admin', 'analyst', 'viewer'].includes(role) ? role : 'analyst'
+        role: 'analyst'
       }
     });
 
@@ -96,7 +96,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
+      jwtSecret(),
       { expiresIn: '1d' }
     );
 
@@ -130,7 +130,7 @@ export const refreshToken = async (req: AuthRequest, res: Response): Promise<voi
 
     const newToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
+      jwtSecret(),
       { expiresIn: '1d' }
     );
 

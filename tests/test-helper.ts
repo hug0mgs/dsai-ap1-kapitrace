@@ -1,14 +1,25 @@
 import path from 'node:path';
 
-// Set absolute DATABASE_URL before importing Prisma or App
-const dbPath = path.resolve(__dirname, '../src/backend/prisma/dev.db');
-process.env.DATABASE_URL = `file:${dbPath}`;
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'kapitrace_test_secret_key_2026';
-
-import { app } from '../src/backend/src/app';
-import prisma from '../src/backend/src/shared/prisma';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+import { installHttpFixtures } from './http-fixtures';
 import { Server } from 'node:http';
+
+const directory = mkdtempSync(path.join(tmpdir(), 'kapitrace-test-'));
+process.env.DATABASE_URL = `file:${path.join(directory, 'test.db')}`;
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'test-only-credential-not-for-production-2026';
+process.env.LOOKUP_REQUESTS_PER_MINUTE = '10000';
+for (const provider of ['ABUSEIPDB','VIRUSTOTAL','SHODAN','GREYNOISE','OTX','URLSCAN','IPINFO']) {
+  process.env[provider === 'IPINFO' ? 'IPINFO_TOKEN' : `${provider}_API_KEY`] = 'test-only-key';
+  process.env[`${provider}_MIN_INTERVAL_MS`] = '0';
+}
+installHttpFixtures();
+execFileSync(process.execPath, [path.resolve(__dirname, '../src/backend/node_modules/prisma/build/index.js'), 'db', 'push', '--skip-generate'], { cwd: path.resolve(__dirname, '../src/backend'), env: process.env, stdio: 'pipe' });
+const { app } = require('../src/backend/src/app') as typeof import('../src/backend/src/app');
+export const prisma = (require('../src/backend/src/shared/prisma') as typeof import('../src/backend/src/shared/prisma')).default;
+process.on('exit', () => rmSync(directory, { recursive: true, force: true }));
 
 export interface TestServer {
   url: string;

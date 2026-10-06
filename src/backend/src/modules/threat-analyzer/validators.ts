@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+import { domainToASCII } from 'node:url';
 /**
  * KapiTrace Threat Analyzer — Input Validation Module
  * Conforming to RFC 791 (IPv4), RFC 4291 / RFC 5952 (IPv6), RFC 1035 / RFC 1123 (FQDN),
@@ -165,80 +167,7 @@ export function validateIPv4(ip: string): IPValidationResult {
  * allowing single '::' zero-compression and optional embedded IPv4 notation.
  */
 export function isValidIPv6(ip: string): boolean {
-  if (typeof ip !== 'string' || !ip.trim()) {
-    return false;
-  }
-
-  const trimmed = ip.trim();
-
-  // Prohibit multiple double-colons
-  const doubleColonCount = (trimmed.match(/::/g) || []).length;
-  if (doubleColonCount > 1) {
-    return false;
-  }
-
-  // Handle pure :: (unspecified address)
-  if (trimmed === '::') {
-    return true;
-  }
-
-  // Check for IPv4-mapped/embedded IPv6 (e.g., ::ffff:192.168.1.1)
-  const lastColonIndex = trimmed.lastIndexOf(':');
-  if (lastColonIndex !== -1) {
-    const potentialIpv4 = trimmed.substring(lastColonIndex + 1);
-    if (potentialIpv4.includes('.')) {
-      if (!isValidIPv4(potentialIpv4)) {
-        return false;
-      }
-      const v6Part = trimmed.substring(0, lastColonIndex);
-      // Validate the IPv6 prefix (treating it as if it ends with 2 hex groups)
-      return validateIPv6PrefixWithEmbeddedIPv4(v6Part);
-    }
-  }
-
-  // Standard IPv6 check
-  const parts = trimmed.split('::');
-  if (parts.length === 1) {
-    // No compression, must have exactly 8 groups
-    const groups = trimmed.split(':');
-    if (groups.length !== 8) {
-      return false;
-    }
-    return groups.every(g => /^[0-9a-fA-F]{1,4}$/.test(g));
-  } else if (parts.length === 2) {
-    // Compressed notation with ::
-    const leftGroups = parts[0] === '' ? [] : parts[0].split(':');
-    const rightGroups = parts[1] === '' ? [] : parts[1].split(':');
-
-    const totalGroups = leftGroups.length + rightGroups.length;
-    if (totalGroups >= 8) {
-      return false;
-    }
-
-    const allLeftValid = leftGroups.every(g => /^[0-9a-fA-F]{1,4}$/.test(g));
-    const allRightValid = rightGroups.every(g => /^[0-9a-fA-F]{1,4}$/.test(g));
-
-    return allLeftValid && allRightValid;
-  }
-
-  return false;
-}
-
-function validateIPv6PrefixWithEmbeddedIPv4(prefix: string): boolean {
-  if (prefix === '' || prefix === ':') {
-    return true;
-  }
-  const parts = prefix.split('::');
-  if (parts.length > 2) return false;
-  if (parts.length === 1) {
-    const groups = prefix.split(':');
-    if (groups.length !== 6) return false;
-    return groups.every(g => /^[0-9a-fA-F]{1,4}$/.test(g));
-  }
-  const left = parts[0] ? parts[0].split(':') : [];
-  const right = parts[1] ? parts[1].split(':') : [];
-  if (left.length + right.length > 5) return false;
-  return left.every(g => /^[0-9a-fA-F]{1,4}$/.test(g)) && right.every(g => /^[0-9a-fA-F]{1,4}$/.test(g));
+  return typeof ip === 'string' && !ip.includes('%') && isIP(ip.trim()) === 6;
 }
 
 /**
@@ -253,15 +182,17 @@ export function validateIPv6(ip: string): IPValidationResult {
     };
   }
 
-  const trimmed = ip.trim().toLowerCase();
-  const isLoopback = trimmed === '::1' || trimmed === '0:0:0:0:0:0:0:1';
-  const isLinkLocal = trimmed.startsWith('fe80:');
-  const isMulticast = trimmed.startsWith('ff');
+  const trimmed = new URL(`http://[${ip.trim()}]/`).hostname.slice(1, -1);
+  const first = parseInt(trimmed.split(':')[0], 16) || 0;
+  const isLoopback = trimmed === '::1';
+  const isLinkLocal = (first & 0xffc0) === 0xfe80;
+  const isMulticast = (first & 0xff00) === 0xff00;
 
   return {
     isValid: true,
     type: 'ipv6',
     version: 6,
+    isPrivate: (first & 0xfe00) === 0xfc00,
     isLoopback,
     isLinkLocal,
     isMulticast,
@@ -474,6 +405,8 @@ export function validateDomain(domain: string): DomainValidationResult {
     };
   }
 
+  if (!isValidDomain(cleaned)) return { isValid: false, error: 'Invalid RFC domain' };
+
   const isPunycode = cleaned.toLowerCase().includes('xn--');
 
   for (let i = 0; i < labels.length; i++) {
@@ -562,4 +495,40 @@ export function detectIndicatorType(indicator: string): 'ip' | 'domain' | 'hash'
   }
 
   return 'unknown';
+}
+
+/** Normalize only valid IOC syntax; never interpret input as a URL. */
+export function normalizeIndicator(type: string, input: unknown): string {
+  if (typeof input !== 'string' || /[\u0000-\u001f\u007f]/.test(input)) throw new Error('Invalid indicator');
+  const value = input.trim().toLowerCase();
+  if (type === 'hash' && isValidHash(value)) return value;
+  if (type === 'domain') {
+    if (!/^[\p{L}\p{N}.\-]+$/u.test(value)) throw new Error('Invalid domain');
+    const ascii = domainToASCII(value.replace(/\.$/, ''));
+    if (isValidDomain(ascii)) return ascii;
+  }
+  if (type === 'ip' && isIP(value) && !value.includes('%')) {
+    const canonical = isIP(value) === 6 ? new URL(`http://[${value}]/`).hostname.slice(1, -1) : value;
+    if (!isPublicIp(canonical)) throw new Error('Only public IP addresses can be queried');
+    return canonical;
+  }
+  throw new Error('Invalid indicator or unsupported type');
+}
+
+export function isPublicIp(ip: string): boolean {
+  if (isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    return !(a === 0 || a === 10 || a === 127 || a >= 224 || a === 169 && b === 254 || a === 172 && b >= 16 && b <= 31 || a === 192 && b === 168 || a === 100 && b >= 64 && b <= 127);
+  }
+  if (isIP(ip) !== 6) return false;
+  const canonical = new URL(`http://[${ip}]/`).hostname.slice(1, -1);
+  if (canonical === '::' || canonical === '::1') return false;
+  if (canonical.startsWith('::ffff:')) {
+    const groups = canonical.slice(7).split(':').map(part => parseInt(part, 16));
+    if (groups.length !== 2) return false;
+    return isPublicIp(`${groups[0] >> 8}.${groups[0] & 255}.${groups[1] >> 8}.${groups[1] & 255}`);
+  }
+  // Only global unicast; excludes ULA, multicast, link-local and translation/compatible special ranges.
+  const first = parseInt(canonical.split(':')[0], 16);
+  return first >= 0x2000 && first <= 0x3fff;
 }

@@ -91,7 +91,8 @@ export const removeFromWatchlist = async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    const { id } = req.params;
+    const id = req.params.id;
+    if (typeof id !== 'string') { res.status(400).json({ error: 'Invalid watchlist ID' }); return; }
 
     // Verify ownership before deleting
     const item = await prisma.watchlist.findFirst({

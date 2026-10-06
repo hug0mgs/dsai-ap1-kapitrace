@@ -1,327 +1,110 @@
 import { Request, Response } from 'express';
 import prisma from '../../shared/prisma';
-import {
-  isValidIPv4,
-  isValidIPv6,
-  isValidDomain,
-  validateHash,
-  detectIndicatorType,
-  validateIPv4,
-  validateIPv6,
-  validateDomain
-} from '../threat-analyzer/validators';
-import {
-  calculate_threat_score,
-  ThreatFactors,
-  ThreatScoreResult
-} from '../threat-analyzer/threat-score.service';
+import { normalizeIndicator } from '../threat-analyzer/validators';
+import { collectIntelligence, IndicatorType, SourceResult } from '../intelligence/intelligence.service';
+import { ThreatScoreResult } from '../threat-analyzer/threat-score.service';
+import { setting } from '../../shared/config';
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours TTL
-
-/**
- * Deterministic helper to simulate intelligence sources for demonstrations/tests
- * based on indicator characteristics, ensuring realistic and reproducible scores.
- */
-function deriveThreatFactors(indicator: string, type: 'ip' | 'domain' | 'hash'): ThreatFactors {
-  const lower = indicator.toLowerCase();
-
-  // Known test indicators for deterministic simulation
-  if (lower.includes('malicious') || lower.includes('evil') || lower.includes('bad') || lower.includes('botnet')) {
-    return {
-      abuseConfidenceScore: 92,
-      maliciousDetectionsRatio: 88,
-      vulnerabilityExposureScore: 75,
-      suspiciousActivityScore: 80,
-      isC2FeedPresent: true,
-      isBotnetActor: true,
-      totalReportsCount: 142
-    };
-  }
-
-  if (lower.includes('phish') || lower.includes('scam')) {
-    return {
-      abuseConfidenceScore: 78,
-      maliciousDetectionsRatio: 65,
-      vulnerabilityExposureScore: 40,
-      suspiciousActivityScore: 60,
-      isPhishingHost: true,
-      totalReportsCount: 45
-    };
-  }
-
-  if (lower.includes('clean') || lower.includes('trusted') || lower === '1.1.1.1' || lower === '8.8.8.8' || lower === 'google.com') {
-    return {
-      abuseConfidenceScore: 0,
-      maliciousDetectionsRatio: 0,
-      vulnerabilityExposureScore: 0,
-      suspiciousActivityScore: 0,
-      isWhitelistedBenign: true,
-      totalReportsCount: 0
-    };
-  }
-
-  // Deterministic seed generation from string characters
-  let seed = 0;
-  for (let i = 0; i < lower.length; i++) {
-    seed = (seed * 31 + lower.charCodeAt(i)) & 0xffffffff;
-  }
-  const positiveSeed = Math.abs(seed);
-
-  const abuse = positiveSeed % 100;
-  const detections = (positiveSeed >> 2) % 100;
-  const vulns = (positiveSeed >> 4) % 100;
-  const activity = (positiveSeed >> 6) % 100;
-
-  return {
-    abuseConfidenceScore: abuse,
-    maliciousDetectionsRatio: detections,
-    vulnerabilityExposureScore: vulns,
-    suspiciousActivityScore: activity,
-    isC2FeedPresent: abuse > 75,
-    isTorExitNode: lower.endsWith('.tor') || lower.startsWith('185.'),
-    totalReportsCount: Math.floor(abuse / 5)
-  };
+const VERSION = 'real-api-v1';
+interface CachedData {
+  scoreVersion: string;
+  indicator: string;
+  type: IndicatorType;
+  threatScore: number;
+  riskLevel: string;
+  analysis: ThreatScoreResult;
+  sources: SourceResult[];
+  factors: unknown;
+  partial: boolean;
+  cachedAt: string;
+  expiresAt: string;
 }
-
-/**
- * Handle IP Lookup (/api/lookup/ip/:ip)
- */
-export const lookupIp = async (req: Request, res: Response): Promise<void> => {
-  const { ip } = req.params;
-
-  if (!ip || (!isValidIPv4(ip) && !isValidIPv6(ip))) {
-    const errorDetail = isValidIPv4(ip)
-      ? 'Valid IPv4'
-      : isValidIPv6(ip)
-        ? 'Valid IPv6'
-        : 'Input is neither valid IPv4 nor valid IPv6 according to RFC 791 / RFC 4291';
-
-    res.status(400).json({
-      error: 'Validation Error',
-      message: errorDetail,
-      indicator: ip
-    });
-    return;
-  }
-
-  const normalizedIp = ip.trim().toLowerCase();
-
+interface CacheRow { data: string; updatedAt: Date }
+interface LookupResponse {
+  source: 'api' | 'cache';
+  indicator: string;
+  type: IndicatorType;
+  threatScore: number | null;
+  riskLevel: string | null;
+  analysis: ThreatScoreResult | null;
+  data: unknown;
+  sources: SourceResult[];
+  cachedAt: string;
+  expiresAt: string;
+  stale: boolean;
+  partial: boolean;
+  assessmentStatus: string;
+  scoreVersion: string;
+}
+const pending = new Map<string, Promise<LookupResponse>>();
+class LookupUnavailable extends Error {
+  constructor(public sources: SourceResult[]) { super('Threat intelligence currently unavailable'); }
+}
+async function readCache(type: IndicatorType, indicator: string): Promise<CacheRow | null> {
+  if (type === 'ip') return prisma.ipCache.findUnique({ where: { ip: indicator } });
+  if (type === 'domain') return prisma.domainCache.findUnique({ where: { domain: indicator } });
+  return prisma.hashCache.findUnique({ where: { hash: indicator } });
+}
+function parseCache(row: CacheRow | null, type: IndicatorType, indicator: string): CachedData | null {
+  if (!row) return null;
   try {
-    // 1. Check Database Cache
-    const cached = await prisma.ipCache.findUnique({ where: { ip: normalizedIp } });
-    if (cached) {
-      const ageMs = Date.now() - cached.updatedAt.getTime();
-      const isExpired = ageMs > CACHE_TTL_MS;
-
-      if (!isExpired) {
-        let parsedData = {};
-        try {
-          parsedData = JSON.parse(cached.data);
-        } catch {
-          parsedData = { raw: cached.data };
-        }
-
-        res.json({
-          source: 'cache',
-          indicator: normalizedIp,
-          type: 'ip',
-          threatScore: cached.threatScore,
-          cachedAt: cached.updatedAt,
-          data: parsedData
-        });
-        return;
-      }
-    }
-
-    // 2. Cache MISS: Evaluate threat factors and calculate unified ThreatScore
-    const factors = deriveThreatFactors(normalizedIp, 'ip');
-    const threatScoreResult = calculate_threat_score(factors);
-
-    const apiData = {
-      threatDetails: threatScoreResult,
-      network: {
-        ip: normalizedIp,
-        version: isValidIPv6(normalizedIp) ? 'IPv6' : 'IPv4',
-        asn: 'AS15169',
-        country: 'US',
-        organization: 'Sample Net Operator'
-      },
-      reports: factors.totalReportsCount || 0
-    };
-
-    // 3. Upsert to DB Cache
-    const saved = await prisma.ipCache.upsert({
-      where: { ip: normalizedIp },
-      update: {
-        threatScore: threatScoreResult.score,
-        data: JSON.stringify(apiData)
-      },
-      create: {
-        ip: normalizedIp,
-        threatScore: threatScoreResult.score,
-        data: JSON.stringify(apiData)
-      }
-    });
-
-    res.json({
-      source: 'api',
-      indicator: normalizedIp,
-      type: 'ip',
-      threatScore: saved.threatScore,
-      riskLevel: threatScoreResult.riskLevel,
-      data: apiData,
-      analysis: threatScoreResult
-    });
-  } catch (error) {
-    console.error('Error during IP lookup:', error);
-    res.status(500).json({ error: 'Failed to lookup IP' });
+    const data = JSON.parse(row.data) as CachedData;
+    if (data.scoreVersion !== VERSION || data.type !== type || data.indicator !== indicator || !Number.isFinite(data.threatScore) || data.threatScore < 0 || data.threatScore > 100 || !data.analysis || data.analysis.score !== data.threatScore || !Array.isArray(data.sources)) return null;
+    const collected = Date.parse(data.cachedAt);
+    const expires = Date.parse(data.expiresAt);
+    if (!Number.isFinite(collected) || !Number.isFinite(expires) || collected > Date.now() || expires <= collected || expires - collected > setting('LOOKUP_CACHE_TTL_SECONDS', 86400, 1, 604800) * 1000) return null;
+    return data;
+  } catch { return null; }
+}
+function cachedResponse(data: CachedData, stale = false, failureSources?: SourceResult[]): LookupResponse {
+  return { source: 'cache', indicator: data.indicator, type: data.type, threatScore: data.threatScore, riskLevel: data.riskLevel, analysis: data.analysis, data, sources: failureSources ?? data.sources, cachedAt: data.cachedAt, expiresAt: data.expiresAt, stale, partial: stale || data.partial, assessmentStatus: stale ? 'stale' : 'assessed', scoreVersion: VERSION };
+}
+async function performLookup(type: IndicatorType, indicator: string): Promise<LookupResponse> {
+  const cached = parseCache(await readCache(type, indicator), type, indicator);
+  if (cached && Date.parse(cached.expiresAt) > Date.now()) return cachedResponse(cached);
+  const intelligence = await collectIntelligence(type, indicator);
+  if (!intelligence.analysis) {
+    if (cached && Date.now() - Date.parse(cached.cachedAt) <= setting('LOOKUP_STALE_MAX_AGE_SECONDS', 172800, 1, 604800) * 1000) return cachedResponse(cached, true, intelligence.sources);
+    if (!intelligence.successful) throw new LookupUnavailable(intelligence.sources);
   }
-};
-
-/**
- * Generic Unified Indicator Lookup (/api/lookup/:type/:indicator)
- * Supports 'ip', 'domain', 'hash'.
- */
+  const now = new Date().toISOString();
+  const ttl = intelligence.partial ? setting('LOOKUP_PARTIAL_CACHE_TTL_SECONDS', 300, 1, 604800) : setting('LOOKUP_CACHE_TTL_SECONDS', 86400, 1, 604800);
+  const data = { scoreVersion: VERSION, indicator, type, threatScore: intelligence.analysis?.score ?? null, riskLevel: intelligence.analysis?.riskLevel ?? null, analysis: intelligence.analysis, sources: intelligence.sources, factors: intelligence.factors, partial: intelligence.partial, cachedAt: now, expiresAt: new Date(Date.parse(now) + ttl * 1000).toISOString() };
+  // Unknown reputation is never persisted as a numeric clean score.
+  if (data.threatScore !== null) {
+    const value = { threatScore: data.threatScore, data: JSON.stringify(data) };
+    if (type === 'ip') await prisma.ipCache.upsert({ where: { ip: indicator }, update: value, create: { ip: indicator, ...value } });
+    else if (type === 'domain') await prisma.domainCache.upsert({ where: { domain: indicator }, update: value, create: { domain: indicator, ...value } });
+    else await prisma.hashCache.upsert({ where: { hash: indicator }, update: value, create: { hash: indicator, ...value } });
+  }
+  return { source: 'api', ...data, data, stale: false, assessmentStatus: intelligence.analysis ? 'assessed' : 'insufficient_data' };
+}
 export const lookupIndicator = async (req: Request, res: Response): Promise<void> => {
-  const { type, indicator } = req.params;
-
-  if (!indicator) {
-    res.status(400).json({ error: 'Indicator parameter is required' });
+  const type = String(req.params.type || 'ip').toLowerCase();
+  let indicator: string;
+  try { indicator = normalizeIndicator(type, req.params.indicator ?? req.params.ip); }
+  catch (error) {
+    res.status(400).json({ error: 'Validation Error', message: error instanceof Error ? error.message : 'Invalid indicator' });
     return;
   }
-
-  const cleanIndicator = indicator.trim().toLowerCase();
-  const lowerType = (type || '').toLowerCase();
-
-  // Validate according to type
-  if (lowerType === 'ip') {
-    if (!isValidIPv4(cleanIndicator) && !isValidIPv6(cleanIndicator)) {
-      res.status(400).json({
-        error: 'Validation Error',
-        message: 'Invalid IP address format (must be standard IPv4 or IPv6)',
-        indicator
-      });
-      return;
-    }
-  } else if (lowerType === 'domain') {
-    if (!isValidDomain(cleanIndicator)) {
-      const validation = validateDomain(cleanIndicator);
-      res.status(400).json({
-        error: 'Validation Error',
-        message: validation.error || 'Invalid domain format conforming to RFC 1035',
-        indicator
-      });
-      return;
-    }
-  } else if (lowerType === 'hash') {
-    const hashValidation = validateHash(cleanIndicator);
-    if (!hashValidation.isValid) {
-      res.status(400).json({
-        error: 'Validation Error',
-        message: hashValidation.error || 'Invalid cryptographic hash (expected MD5, SHA-1, or SHA-256)',
-        indicator
-      });
-      return;
-    }
-  } else {
-    // If unknown type parameter, try auto-detection
-    const detected = detectIndicatorType(cleanIndicator);
-    if (detected === 'unknown') {
-      res.status(400).json({
-        error: 'Validation Error',
-        message: `Unsupported or invalid indicator format for type "${type}"`,
-        indicator
-      });
-      return;
-    }
-  }
-
+  const key = `${type}:${indicator}`;
   try {
-    const effectiveType = lowerType === 'ip' || lowerType === 'domain' || lowerType === 'hash'
-      ? lowerType
-      : detectIndicatorType(cleanIndicator);
-
-    // Cache lookup based on indicator type
-    let cachedItem: { threatScore: number; data: string; updatedAt: Date } | null = null;
-
-    if (effectiveType === 'ip') {
-      cachedItem = await prisma.ipCache.findUnique({ where: { ip: cleanIndicator } });
-    } else if (effectiveType === 'domain') {
-      cachedItem = await prisma.domainCache.findUnique({ where: { domain: cleanIndicator } });
-    } else if (effectiveType === 'hash') {
-      cachedItem = await prisma.hashCache.findUnique({ where: { hash: cleanIndicator } });
+    let request = pending.get(key);
+    if (!request) {
+      if (pending.size >= 128) { res.status(503).json({ error: 'Lookup capacity exceeded' }); return; }
+      request = performLookup(type as IndicatorType, indicator).finally(() => pending.delete(key));
+      pending.set(key, request);
     }
-
-    if (cachedItem) {
-      const ageMs = Date.now() - cachedItem.updatedAt.getTime();
-      if (ageMs <= CACHE_TTL_MS) {
-        let parsedData = {};
-        try {
-          parsedData = JSON.parse(cachedItem.data);
-        } catch {
-          parsedData = { raw: cachedItem.data };
-        }
-
-        res.json({
-          source: 'cache',
-          indicator: cleanIndicator,
-          type: effectiveType,
-          threatScore: cachedItem.threatScore,
-          cachedAt: cachedItem.updatedAt,
-          data: parsedData
-        });
-        return;
-      }
-    }
-
-    // Cache MISS: Compute fresh threat intelligence
-    const factors = deriveThreatFactors(cleanIndicator, effectiveType as 'ip' | 'domain' | 'hash');
-    const threatScoreResult = calculate_threat_score(factors);
-
-    const apiData = {
-      indicator: cleanIndicator,
-      type: effectiveType,
-      threatScore: threatScoreResult.score,
-      riskLevel: threatScoreResult.riskLevel,
-      factors,
-      threatAnalysis: threatScoreResult,
-      generatedAt: new Date().toISOString()
-    };
-
-    const stringifiedData = JSON.stringify(apiData);
-
-    // Save to relevant cache table
-    if (effectiveType === 'ip') {
-      await prisma.ipCache.upsert({
-        where: { ip: cleanIndicator },
-        update: { threatScore: threatScoreResult.score, data: stringifiedData },
-        create: { ip: cleanIndicator, threatScore: threatScoreResult.score, data: stringifiedData }
-      });
-    } else if (effectiveType === 'domain') {
-      await prisma.domainCache.upsert({
-        where: { domain: cleanIndicator },
-        update: { threatScore: threatScoreResult.score, data: stringifiedData },
-        create: { domain: cleanIndicator, threatScore: threatScoreResult.score, data: stringifiedData }
-      });
-    } else if (effectiveType === 'hash') {
-      await prisma.hashCache.upsert({
-        where: { hash: cleanIndicator },
-        update: { threatScore: threatScoreResult.score, data: stringifiedData },
-        create: { hash: cleanIndicator, threatScore: threatScoreResult.score, data: stringifiedData }
-      });
-    }
-
-    res.json({
-      source: 'api',
-      indicator: cleanIndicator,
-      type: effectiveType,
-      threatScore: threatScoreResult.score,
-      riskLevel: threatScoreResult.riskLevel,
-      data: apiData,
-      analysis: threatScoreResult
-    });
+    res.json(await request);
   } catch (error) {
-    console.error('Error during indicator lookup:', error);
-    res.status(500).json({ error: 'Failed to lookup indicator' });
+    if (error instanceof LookupUnavailable) {
+      const retry = Math.min(...error.sources.filter(source => source.retryAfter).map(source => source.retryAfter!));
+      if (Number.isFinite(retry)) res.setHeader('Retry-After', retry);
+      res.status(503).json({ error: error.message, sources: error.sources, threatScore: null, riskLevel: null, assessmentStatus: 'unavailable' });
+    } else {
+      console.error('Lookup storage or configuration failure');
+      res.status(500).json({ error: 'Failed to process lookup' });
+    }
   }
 };
+export const lookupIp = lookupIndicator;

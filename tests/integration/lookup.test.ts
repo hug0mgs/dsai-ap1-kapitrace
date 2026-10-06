@@ -1,5 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
+import { calls } from '../http-fixtures';
 import { startTestServer, TestServer } from '../test-helper';
 
 describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', () => {
@@ -35,8 +36,10 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
   });
 
   it('should return source: "cache" (Cache HIT) on subsequent lookup of the same IP', async () => {
+    const count = calls.length;
     const res = await server.fetch(`/api/lookup/ip/${testIp}`);
     assert.strictEqual(res.status, 200);
+    assert.strictEqual(calls.length, count, 'Cache HIT must make zero external requests');
 
     const body = await res.json();
     assert.strictEqual(body.source, 'cache', 'Expected Cache HIT on second lookup');
