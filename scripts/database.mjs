@@ -39,8 +39,9 @@ try {
       const state = await inspectDatabase(client);
       if (state.issues.length) { console.error(state.issues.join('\n')); throw new Error('Incompatible existing model tables'); }
       if (operation === 'check') {
-        if (state.tables.some(table => !table.rls_enabled || !table.backend_access)) throw new Error('RLS/backend role configuration incomplete');
-        console.log('PostgreSQL runtime connection, seven model tables and backend-only RLS verified.');
+        if (state.tables.some(table => !table.rls_enabled || !table.backend_access || table.public_api_access) ||
+            !state.migrationHistory?.rls_enabled || !state.migrationHistory.backend_access || state.migrationHistory.public_api_access) throw new Error('RLS/backend role configuration incomplete');
+        console.log('PostgreSQL runtime connection, seven model tables, private migration history and backend-only RLS verified.');
       } else {
         const [{ exists }] = await client.$queryRaw`SELECT to_regclass(format('%I.%I', current_schema(), '_prisma_migrations')) IS NOT NULL AS exists`;
         const rows = exists ? await client.$queryRaw`SELECT migration_name FROM "_prisma_migrations" WHERE migration_name = ${INITIAL_MIGRATION} AND finished_at IS NOT NULL AND rolled_back_at IS NULL` : [];

@@ -1,6 +1,7 @@
 // Shared metadata inspection. Never selects user data or connection credentials.
 export const INITIAL_MIGRATION = '20261006000100_initial_postgresql';
 export const SECURITY_MIGRATION = '20261006000200_backend_only_security';
+export const HISTORY_MIGRATION = '20261006000300_private_migration_history';
 const text = ['text', false];
 const date = ['timestamp', false];
 const score = ['float8', false];
@@ -41,7 +42,10 @@ export async function inspectDatabase(client) {
         AND has_table_privilege(current_user, c.oid, 'SELECT')
         AND has_table_privilege(current_user, c.oid, 'INSERT')
         AND has_table_privilege(current_user, c.oid, 'UPDATE')
-        AND has_table_privilege(current_user, c.oid, 'DELETE')) AS backend_access
+        AND has_table_privilege(current_user, c.oid, 'DELETE')) AS backend_access,
+      EXISTS(SELECT 1 FROM pg_roles api_role WHERE api_role.rolname IN ('anon','authenticated')
+        AND (has_table_privilege(api_role.oid,c.oid,'SELECT') OR has_table_privilege(api_role.oid,c.oid,'INSERT')
+          OR has_table_privilege(api_role.oid,c.oid,'UPDATE') OR has_table_privilege(api_role.oid,c.oid,'DELETE'))) AS public_api_access
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     JOIN pg_roles r ON r.rolname = current_user
     WHERE n.nspname = current_schema() AND c.relkind = 'r'`;
@@ -61,5 +65,5 @@ export async function inspectDatabase(client) {
   for (const table of ['Watchlist', 'AuditLog']) {
     if (!foreignKeys.some(key => key.table_name === table && key.parent_table === 'User' && key.parent_schema === schema && key.columns.length === 1 && key.columns[0] === 'userId' && key.parent_columns.length === 1 && key.parent_columns[0] === 'id' && key.on_update === 'c' && key.on_delete === 'r')) issues.push(`${table}.userId: compatible foreign key required`);
   }
-  return { issues, tables: tables.filter(table => table.table_name in expectedTables) };
+  return { issues, tables: tables.filter(table => table.table_name in expectedTables), migrationHistory: tables.find(table=>table.table_name==='_prisma_migrations') };
 }

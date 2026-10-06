@@ -5,18 +5,28 @@ import path from 'node:path';
 import { startTestServer, prisma, type TestServer } from '../test-helper';
 import { PrismaClient } from '../../src/backend/node_modules/@prisma/client';
 import { testSchema } from '../postgres-helper';
-import { inspectDatabase, INITIAL_MIGRATION, SECURITY_MIGRATION } from '../../scripts/database-schema.mjs';
+import { inspectDatabase, INITIAL_MIGRATION, SECURITY_MIGRATION, HISTORY_MIGRATION } from '../../scripts/database-schema.mjs';
 describe('PostgreSQL migrations, RLS and safe schema adoption', () => {
   let server: TestServer;
   before(async () => { server = await startTestServer(); });
   after(async () => { await server.close(); });
-  it('applies both real migrations and isolates each process in its own schema', async () => {
+  it('applies all real migrations and isolates each process in its own schema', async () => {
     const rows = await prisma.$queryRaw<{ migration_name: string }[]>`SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL`;
-    assert.deepEqual(rows.map(row=>row.migration_name).sort(), [INITIAL_MIGRATION,SECURITY_MIGRATION]);
+    assert.deepEqual(rows.map(row=>row.migration_name).sort(), [INITIAL_MIGRATION,SECURITY_MIGRATION,HISTORY_MIGRATION]);
     const [{ schema }] = await prisma.$queryRaw<{ schema: string }[]>`SELECT current_schema()::text AS schema`;
     assert.equal(schema, testSchema); assert.notEqual(schema, 'public');
     const result = await inspectDatabase(prisma);
     assert.deepEqual(result.issues, []); assert.equal(result.tables.length,7); assert.ok(result.tables.every((table: { rls_enabled: boolean; backend_access: boolean })=>table.rls_enabled && table.backend_access));
+  });
+  it('protects Prisma history and db:check includes it', async () => {
+    const state=await inspectDatabase(prisma);
+    assert.ok(state.migrationHistory?.rls_enabled);
+    assert.equal(state.migrationHistory?.public_api_access,false);
+    const root=path.resolve(__dirname,'../..');
+    execFileSync(process.execPath,[path.join(root,'scripts/database.mjs'),'check'],{cwd:root,env:process.env,stdio:'pipe'});
+    await prisma.$executeRawUnsafe('ALTER TABLE "_prisma_migrations" DISABLE ROW LEVEL SECURITY');
+    try { assert.throws(()=>execFileSync(process.execPath,[path.join(root,'scripts/database.mjs'),'check'],{cwd:root,env:process.env,stdio:'pipe'})); }
+    finally { await prisma.$executeRawUnsafe('ALTER TABLE "_prisma_migrations" ENABLE ROW LEVEL SECURITY'); }
   });
   it('retains ownership relations, uniqueness and rejects out-of-range scores', async () => {
     const user = await prisma.user.create({ data: { email: 'postgres-fixture@example.com', password: 'test-only-placeholder-hash' } });
@@ -32,8 +42,8 @@ describe('PostgreSQL migrations, RLS and safe schema adoption', () => {
       SELECT has_table_privilege(r.oid,c.oid,'SELECT') AS allowed
       FROM pg_roles r CROSS JOIN pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
       WHERE r.rolname IN ('anon','authenticated') AND n.nspname=current_schema()
-        AND c.relname IN ('User','AuditLog','Watchlist','IpCache','DomainCache','HashCache','EmailCache')`;
-    if (process.env.KAPITRACE_TEST_SUPABASE_ROLES === '1') assert.equal(rows.length, 14);
+        AND c.relname IN ('User','AuditLog','Watchlist','IpCache','DomainCache','HashCache','EmailCache','_prisma_migrations')`;
+    if (process.env.KAPITRACE_TEST_SUPABASE_ROLES === '1') assert.equal(rows.length, 16);
     assert.ok(rows.every(row=>!row.allowed));
   });
   it('validates an existing schema for baseline without resetting or erasing records', async () => {
