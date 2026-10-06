@@ -1,0 +1,3 @@
+
+# Preserve raw tool output, including terminal progress and trailing newlines.
+prompts/sessoes/*.log -whitespace

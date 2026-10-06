@@ -7,6 +7,10 @@
     "test": "npm --prefix src/backend test",
     "test:unit": "npm --prefix src/backend run test:unit",
     "test:integration": "npm --prefix src/backend run test:integration",
-    "test:e2e": "npm --prefix src/backend run test:e2e"
+    "test:e2e": "npm --prefix src/backend run test:e2e",
+    "check:secrets": "node scripts/check-secrets.mjs --all"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

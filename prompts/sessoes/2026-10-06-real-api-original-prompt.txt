@@ -1,0 +1,67 @@
+Atue como um Engenheiro de Software Senior especialista em SDD (Specification-Driven Development) e Automação de Segurança. Sua missão é evoluir o projeto — que atualmente utiliza dados mockados — para realizar chamadas reais a APIs externas e integrar as chaves de API necessárias, mantendo conformidade estrita com a arquitetura e os requisitos do repositório.
+
+===============================================================================
+1. TAREFA PRINCIPAL: MIGRAÇÃO DE MOCK PARA APIS REAIS
+===============================================================================
+
+- Substituir as implementações mockadas por integrações reais com as APIs externas de threat intelligence.
+- Configurar o gerenciamento seguro de chaves de API (API Keys) via variáveis de ambiente (ex: `.env`).
+- Implementar tratamento de erros resiliente para falhas de rede, limites de taxa (rate limits) e timeouts das APIs externas.
+
+===============================================================================
+2. AUDITORIA E MANUTENÇÃO DO README.md
+===============================================================================
+
+- Analise o arquivo `README.md` existente e garanta que ele seja preservado, ajustando/complementando apenas se necessário:
+  - URL pública do projeto acessível com um clique no topo do arquivo.
+  - Tabela/seção atualizada de Ferramentas e Modelos de IA utilizados.
+  - Atualização ou inclusão do bloco com a saída do comando `cloc` (garantindo que o relatório contabilize pelo menos 100.000 linhas).
+
+===============================================================================
+3. REGRAS DE SDD (SPECIFICATION-DRIVEN DEVELOPMENT) E COMMITS
+===============================================================================
+
+1. Atualização ou Criação da SPEC Datada:
+   - ANTES de alterar o código de mock para APIs reais, crie ou atualize o arquivo de especificação em `SPEC/` com a data atual (ex: `SPEC/2026-10-06-real-api-integration.md`).
+   - A SPEC deve detalhar:
+     - Quais serviços/APIs externas serão chamados.
+     - Nomes das variáveis de ambiente para as API Keys.
+     - Mudanças na lógica de cálculo do `ThreatScore` com dados reais.
+     - Estratégia de fallback/cache para o endpoint de Lookup.
+
+2. Ordem do Commit no Git:
+   - O commit da nova SPEC DEVE ser feito OBRIGATORIAMENTE ANTES da implementação do código funcional.
+
+3. Trailers Obrigatórios nos Commits:
+   - Todo commit deve obrigatoriamente conter os trailers git ao final da mensagem:
+
+     Agent: <Nome-e-Modelo-do-Agente-IA-Utilizado>
+     Spec: SPEC/<nome-do-arquivo-de-spec>.md
+
+===============================================================================
+4. ADAPTAÇÃO DA COBERTURA DE TESTES
+===============================================================================
+
+- Testes Unitários (`tests/unit/`):
+  - Testar a função do `ThreatScore` com respostas reais mockadas/stubs nos testes.
+  - Validar sanitização de inputs (IPs v4/v6, Hashes MD5/SHA1/SHA256, Domínios RFC 1035).
+- Testes de Integração (`tests/integration/`):
+  - Testar endpoints de Auth, Lookup (verificando hit/miss do Cache ao consultar chamadas externas) e Watchlist.
+  - Usar mocks/vcr apenas na camada HTTP de testes de integração para evitar consumo de cupons de API em CI/CD.
+- Testes E2E (`tests/e2e/`):
+  - Testar o fluxo completo na interface de busca e gerenciamento da watchlist.
+
+===============================================================================
+5. HIGIENE DO REPOSITÓRIO E SEGURANÇA MÁXIMA
+===============================================================================
+
+- SEGURANÇA MÁXIMA: NENHUMA chave de API real, token, senha ou segredo deve ser commitado no repositório. Assegure que arquivos `.env` estejam no `.gitignore` e disponibilize apenas um `.env.example`.
+- Registro de Sessões: Salve os logs/exportações brutas de todas as conversas e prompts em `prompts/sessoes/`.
+
+===============================================================================
+SUA TAREFA INICIAL
+===============================================================================
+
+1. Inspecione o código atual e identifique onde os dados mockados estão sendo utilizados.
+2. Crie/atualize a SPEC correspondente em `SPEC/2026-10-06-real-api-integration.md` detalhando as integrações reais e as chaves necessárias.
+3. Garanta o commit da SPEC antes de iniciar a alteração do código funcional.

@@ -1,0 +1,11 @@
+Supabase Transaction Pooler runtime connection: successful
+AuditLog: RLS=true; public API access=false
+DomainCache: RLS=true; public API access=false
+EmailCache: RLS=true; public API access=false
+HashCache: RLS=true; public API access=false
+IpCache: RLS=true; public API access=false
+User: RLS=true; public API access=false
+Watchlist: RLS=true; public API access=false
+_prisma_migrations: RLS=true; public API access=false
+Applied migrations: 20261006000100_initial_postgresql, 20261006000200_backend_only_security, 20261006000300_private_migration_history
+No user records queried or changed in this verification.

@@ -1,14 +1,20 @@
-import path from 'node:path';
+import assert from 'node:assert/strict';
+import { randomBytes, randomUUID } from 'node:crypto';
 
-// Set absolute DATABASE_URL before importing Prisma or App
-const dbPath = path.resolve(__dirname, '../src/backend/prisma/dev.db');
-process.env.DATABASE_URL = `file:${dbPath}`;
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'kapitrace_test_secret_key_2026';
-
-import { app } from '../src/backend/src/app';
-import prisma from '../src/backend/src/shared/prisma';
+import { removeTestSchema } from './postgres-helper';
+import { installHttpFixtures } from './http-fixtures';
 import { Server } from 'node:http';
+
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = randomBytes(48).toString('hex');
+process.env.LOOKUP_REQUESTS_PER_MINUTE = '10000';
+for (const provider of ['ABUSEIPDB','VIRUSTOTAL','SHODAN','GREYNOISE','OTX','URLSCAN','IPINFO']) {
+  process.env[provider === 'IPINFO' ? 'IPINFO_TOKEN' : `${provider}_API_KEY`] = 'test-only-key';
+  process.env[`${provider}_MIN_INTERVAL_MS`] = '0';
+}
+installHttpFixtures();
+const { app } = require('../src/backend/src/app') as typeof import('../src/backend/src/app');
+export const prisma = (require('../src/backend/src/shared/prisma') as typeof import('../src/backend/src/shared/prisma')).default;
 
 export interface TestServer {
   url: string;
@@ -36,6 +42,7 @@ export function startTestServer(): Promise<TestServer> {
             server.close(() => done());
           });
           await prisma.$disconnect();
+          await removeTestSchema();
         },
         fetch: (path: string, init: RequestInit = {}) => {
           const targetUrl = path.startsWith('http')
@@ -50,4 +57,24 @@ export function startTestServer(): Promise<TestServer> {
       });
     });
   });
+}
+
+/** Explicit login through the real Auth API. server.fetch stays anonymous by default. */
+export async function loginTestUser(server: TestServer): Promise<string> {
+  const credentials = { email: `lookup-${randomUUID()}@example.com`, password: 'TestOnlyLogin-2026!' };
+  const init = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+  const register = await server.fetch('/api/auth/register', { ...init, body: JSON.stringify(credentials) });
+  assert.equal(register.status, 201);
+  const login = await server.fetch('/api/auth/login', { ...init, body: JSON.stringify(credentials) });
+  assert.equal(login.status, 200);
+  const body = await login.json();
+  assert.equal(typeof body.token, 'string');
+  return body.token;
+}
+export function withBearer(server: TestServer, token: string): TestServer['fetch'] {
+  return (path, options = {}) => {
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return server.fetch(path, { ...options, headers });
+  };
 }

@@ -44,7 +44,7 @@ export interface ThreatFactors {
 export interface FactorBreakdown {
   name: string;
   weight: number;
-  inputScore: number;
+  inputScore: number | null;
   weightedScore: number;
   description: string;
 }
@@ -93,13 +93,13 @@ export const WEIGHT_ACTIVITY = 0.10;
 /**
  * Pure calculation function for the unified ThreatScore.
  * Adheres to:
- * S_raw = sum(w_i * M_i) + sum(B_k)
+ * S_raw = sum(w_i * M_i) / sum(available w_i) + sum(B_k)
  * ThreatScore = min(100, max(0, round(S_raw)))
  */
-export function calculate_threat_score(factors: ThreatFactors = {}): ThreatScoreResult {
+export function calculate_threat_score(factors: ThreatFactors = {}, type: 'ip' | 'domain' | 'hash' = 'ip'): ThreatScoreResult | null {
   // Normalize input factors, ensuring they reside within [0, 100]
   const clampInput = (val?: number): number => {
-    if (typeof val !== 'number' || isNaN(val)) return 0;
+    if (typeof val !== 'number' || !Number.isFinite(val)) return 0;
     return Math.min(100, Math.max(0, val));
   };
 
@@ -140,6 +140,17 @@ export function calculate_threat_score(factors: ThreatFactors = {}): ThreatScore
     }
   ];
 
+  const supplied = [factors.abuseConfidenceScore, factors.maliciousDetectionsRatio, factors.vulnerabilityExposureScore, factors.suspiciousActivityScore];
+  const applicable = type === 'ip' ? [true, true, true, true] : [false, true, false, false];
+  const available = supplied.map((value, index) => applicable[index] && typeof value === 'number' && Number.isFinite(value));
+  const availableWeight = factorBreakdowns.reduce((sum, factor, index) => sum + (available[index] ? factor.weight : 0), 0);
+  if (!availableWeight) return null;
+  const applicableWeight = type === 'ip' ? 1 : WEIGHT_MALICIOUS_DETECTIONS;
+  factorBreakdowns.forEach((factor, index) => {
+    factor.inputScore = available[index] ? factor.inputScore : null;
+    factor.weight = available[index] ? factor.weight / availableWeight : 0;
+    factor.weightedScore = factor.inputScore === null ? 0 : factor.inputScore * factor.weight;
+  });
   const baseWeightedSum = factorBreakdowns.reduce((acc, f) => acc + f.weightedScore, 0);
 
   // Modifiers evaluation
@@ -195,7 +206,7 @@ export function calculate_threat_score(factors: ThreatFactors = {}): ThreatScore
 
   const modifiersSum = modifiersApplied.reduce((acc, m) => acc + m.modifier, 0);
 
-  const rawScore = Number((baseWeightedSum + modifiersSum).toFixed(2));
+  const rawScore = baseWeightedSum + modifiersSum;
   const boundedScore = Math.min(100, Math.max(0, Math.round(rawScore)));
 
   // Risk Tier classification
@@ -226,15 +237,8 @@ export function calculate_threat_score(factors: ThreatFactors = {}): ThreatScore
     badgeColor = '#22c55e'; // Green
   }
 
-  // Calculate confidence based on breadth of factors provided
-  let factorsSuppliedCount = 0;
-  if (factors.abuseConfidenceScore !== undefined) factorsSuppliedCount++;
-  if (factors.maliciousDetectionsRatio !== undefined) factorsSuppliedCount++;
-  if (factors.vulnerabilityExposureScore !== undefined) factorsSuppliedCount++;
-  if (factors.suspiciousActivityScore !== undefined) factorsSuppliedCount++;
-  if (modifiersApplied.length > 0) factorsSuppliedCount++;
-
-  const confidencePercentage = Math.min(100, Math.round((factorsSuppliedCount / 5) * 100));
+  // Confidence reports evidence coverage, never modifier count.
+  const confidencePercentage = Math.min(100, Math.round(availableWeight / applicableWeight * 100));
 
   return {
     score: boundedScore,

@@ -1,63 +1,38 @@
 'use client';
-
-import Link from 'next/link';
+import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '../../lib/api';
+import { setSessionToken } from '../../lib/session';
 
 export default function LoginPage() {
-  return (
-    <div className="auth-page">
-      <div className="auth-card animate-fade-in">
-        <div className="auth-logo">
-          <div className="auth-logo-icon">🛡️</div>
-          <h2>KapiTrace</h2>
-          <p>Threat Intelligence Platform</p>
-        </div>
-
-        <form className="auth-form" onSubmit={(e) => e.preventDefault()}>
-          <div className="input-group">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              className="input"
-              placeholder="analyst@KapiTrace.io"
-            />
-          </div>
-
-          <div className="input-group">
-            <label htmlFor="password">Senha</label>
-            <input
-              id="password"
-              type="password"
-              className="input"
-              placeholder="••••••••••"
-            />
-          </div>
-
-          <div className="flex justify-between items-center" style={{ fontSize: '0.8rem' }}>
-            <label className="flex items-center gap-1" style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>
-              <input type="checkbox" style={{ accentColor: 'var(--cyan-500)' }} />
-              Lembrar sessão
-            </label>
-            <a href="#" style={{ color: 'var(--cyan-400)', fontWeight: 600 }}>Esqueci a senha</a>
-          </div>
-
-          <button type="submit" className="btn btn-primary btn-lg">
-            Acessar Painel
-          </button>
-        </form>
-
-        <div className="auth-footer">
-          Não tem uma conta?{' '}
-          <Link href="/login">Solicite acesso</Link>
-        </div>
-
-        <div className="glow-line" style={{ margin: '1.5rem 0 1rem' }}></div>
-
-        <div className="text-center" style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>
-          <p>🔒 Conexão criptografada TLS 1.3</p>
-          <p style={{ marginTop: '0.25rem' }}>Autenticação JWT com RBAC</p>
-        </div>
-      </div>
-    </div>
-  );
+  const router = useRouter();
+  const [register, setRegister] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const credentials = { email: String(form.get('email')), password: String(form.get('password')) };
+    setError(''); setLoading(true);
+    setSessionToken(null);
+    try {
+      if (register) await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ ...credentials, name: String(form.get('name') || '') }) });
+      const result = await api<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
+      if (typeof result.token !== 'string') throw new Error('Resposta de autenticação inválida.');
+      setSessionToken(result.token);
+      router.replace('/lookup');
+    } catch (failure) { setError(failure instanceof Error ? failure.message : 'Falha na autenticação'); }
+    finally { setLoading(false); }
+  }
+  return <div className="auth-page"><div className="auth-card">
+    <div className="auth-logo"><h2>KapiTrace</h2><p>{register ? 'Criar conta' : 'Entrar'}</p></div>
+    <form className="auth-form" onSubmit={submit}>
+      {register && <div className="input-group"><label htmlFor="name">Nome</label><input className="input" id="name" name="name" autoComplete="name" /></div>}
+      <div className="input-group"><label htmlFor="email">Email</label><input className="input" id="email" name="email" type="email" autoComplete="email" required /></div>
+      <div className="input-group"><label htmlFor="password">Senha</label><input className="input" id="password" name="password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={8} required /></div>
+      {error && <p role="alert">{error}</p>}
+      <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Aguarde…' : register ? 'Criar conta e entrar' : 'Entrar'}</button>
+    </form>
+    <button className="btn btn-ghost" disabled={loading} onClick={() => { setRegister(!register); setError(''); }}>{register ? 'Já tenho conta' : 'Criar conta'}</button>
+  </div></div>;
 }

@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 
 const features = [
   {
@@ -12,46 +14,55 @@ const features = [
   {
     icon: '🔗',
     title: 'Domain Intelligence',
-    description: 'WHOIS, DNS records, SSL analysis e screenshots automáticos via URLScan.io.',
+    description: 'Reputação VirusTotal e contexto de relatórios existentes no URLScan.io e OTX.',
     color: 'purple',
   },
   {
     icon: '🧬',
     title: 'Malware Hash Lookup',
-    description: 'Detecção via 70+ engines antivírus, tags de comportamento e mapeamento MITRE ATT&CK.',
+    description: 'Consulte detecções de arquivos existentes por MD5, SHA-1 ou SHA-256.',
     color: 'red',
   },
   {
     icon: '📧',
     title: 'Email Reputation',
-    description: 'Verificação SPF, DKIM, DMARC e presença em listas de spam em tempo real.',
+    description: 'Integração de email ainda indisponível nesta versão.',
     color: 'amber',
   },
   {
     icon: '📊',
     title: 'Threat Dashboard',
-    description: 'Mapa global de ameaças D3.js, feeds em tempo real e métricas consolidadas.',
+    description: 'Gerencie os indicadores da sua watchlist com sua sessão autenticada.',
     color: 'green',
   },
   {
     icon: '👁️',
-    title: 'Watchlist & Alerts',
-    description: 'Monitoramento contínuo de IOCs com alertas automáticos de mudança de score.',
+    title: 'Watchlist',
+    description: 'Adicione, liste e remova indicadores. Alertas automáticos ainda indisponíveis.',
     color: 'cyan',
   },
 ];
 
 const apiLogos = [
-  { name: 'AbuseIPDB', quota: '1000/dia' },
-  { name: 'VirusTotal', quota: '4/min' },
-  { name: 'IPInfo', quota: '50k/mês' },
-  { name: 'Shodan', quota: '1/s' },
-  { name: 'GreyNoise', quota: '50/dia' },
-  { name: 'URLScan.io', quota: '100/dia' },
-  { name: 'AlienVault OTX', quota: '∞' },
+  { name: 'AbuseIPDB', quota: 'Cota conforme plano' },
+  { name: 'VirusTotal', quota: 'Cota conforme plano' },
+  { name: 'IPInfo', quota: 'Cota conforme plano' },
+  { name: 'Shodan', quota: 'Cota conforme plano' },
+  { name: 'GreyNoise', quota: 'Cota conforme plano' },
+  { name: 'URLScan.io', quota: 'Cota conforme plano' },
+  { name: 'AlienVault OTX', quota: 'Cota conforme plano' },
 ];
 
 export default function Home() {
+  const router = useRouter();
+  const [query, setQuery] = useState('');
+  function search(event: FormEvent) {
+    event.preventDefault();
+    const indicator = query.trim();
+    if (!indicator) return;
+    const type = indicator.includes(':') || /^\d+\.\d+\.\d+\.\d+$/.test(indicator) ? 'ip' : /^(?:[a-f0-9]{32}|[a-f0-9]{40}|[a-f0-9]{64})$/i.test(indicator) ? 'hash' : 'domain';
+    router.push(`/lookup?type=${type}&q=${encodeURIComponent(indicator)}`);
+  }
   return (
     <div style={{ position: 'relative', zIndex: 1 }}>
       {/* ─── Navigation Bar ─── */}
@@ -136,7 +147,7 @@ export default function Home() {
               boxShadow: '0 0 8px rgba(16,185,129,0.5)',
               display: 'inline-block',
             }}></span>
-            v1.0 — 7 APIs Integradas • Score Unificado
+            v1.0 — 7 integrações disponíveis • Configure suas chaves
           </div>
 
           <h1 style={{
@@ -165,22 +176,25 @@ export default function Home() {
             margin: '0 auto 2.5rem',
             lineHeight: 1.7,
           }}>
-            Analise a reputação de IPs, domínios, hashes e emails agregando dados
+            Analise a reputação de IPs, domínios e hashes agregando dados
             de <strong style={{ color: 'var(--text-secondary)' }}>7 fontes de inteligência</strong> em
             um score unificado.
           </p>
 
           {/* Hero Search */}
-          <div className="search-hero" style={{ maxWidth: '620px' }}>
+          <form className="search-hero" style={{ maxWidth: '620px' }} onSubmit={search}>
             <span className="search-hero-icon">🔍</span>
             <input
               type="text"
-              placeholder="Enter IP, domain, hash, or email..."
+              placeholder="IP, domínio ou hash"
+              aria-label="Indicador inicial"
+              required
+              maxLength={512}
+              value={query}
+              onChange={event => setQuery(event.target.value)}
             />
-            <Link href="/lookup" className="btn btn-primary btn-lg">
-              Analisar
-            </Link>
-          </div>
+            <button type="submit" className="btn btn-primary btn-lg">Analisar</button>
+          </form>
 
           {/* Quick examples */}
           <div style={{
@@ -191,7 +205,7 @@ export default function Home() {
             flexWrap: 'wrap',
           }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Exemplos:</span>
-            {['185.220.101.34', 'malware.xyz', 'e99a18c428...'].map((ex) => (
+            {['185.220.101.34', 'malware.xyz', 'd41d8cd98f00b204e9800998ecf8427e'].map((ex) => (
               <code key={ex} style={{
                 fontSize: '0.7rem',
                 fontFamily: 'var(--font-mono)',
@@ -200,7 +214,6 @@ export default function Home() {
                 padding: '0.15rem 0.5rem',
                 borderRadius: 'var(--radius-sm)',
                 border: '1px solid var(--border-subtle)',
-                cursor: 'pointer',
               }}>
                 {ex}
               </code>
@@ -243,7 +256,7 @@ export default function Home() {
             <span className="text-cyan">Uma Plataforma</span>
           </h2>
           <p className="text-muted" style={{ maxWidth: '480px', margin: '0 auto' }}>
-            Do lookup individual ao monitoramento contínuo, tudo integrado com as melhores APIs de segurança do mercado.
+            Consultas de inteligência e watchlist com dados de fontes externas configuradas.
           </p>
         </div>
 
@@ -314,7 +327,7 @@ export default function Home() {
       }}>
         <p>© 2026 KapiTrace Intelligence — UFPA DSAI AP1</p>
         <p style={{ marginTop: '0.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
-          Next.js 15 • Express.js • PostgreSQL • Prisma • 7 APIs
+          Next.js 16 • Express.js • SQLite • Prisma • 7 integrações
         </p>
       </footer>
     </div>

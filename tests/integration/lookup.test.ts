@@ -1,13 +1,16 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
-import { startTestServer, TestServer } from '../test-helper';
+import { calls } from '../http-fixtures';
+import { startTestServer, loginTestUser, withBearer, TestServer } from '../test-helper';
 
 describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', () => {
   let server: TestServer;
+  let lookup: TestServer['fetch'];
 
   before(async () => {
     process.env.NODE_ENV = 'test';
     server = await startTestServer();
+    lookup = withBearer(server, await loginTestUser(server));
   });
 
   after(async () => {
@@ -22,7 +25,7 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
   const testHash = 'd41d8cd98f00b204e9800998ecf8427e';
 
   it('should return source: "api" (Cache MISS) on first lookup of an IP address', async () => {
-    const res = await server.fetch(`/api/lookup/ip/${testIp}`);
+    const res = await lookup(`/api/lookup/ip/${testIp}`);
     assert.strictEqual(res.status, 200);
 
     const body = await res.json();
@@ -35,8 +38,10 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
   });
 
   it('should return source: "cache" (Cache HIT) on subsequent lookup of the same IP', async () => {
-    const res = await server.fetch(`/api/lookup/ip/${testIp}`);
+    const count = calls.length;
+    const res = await lookup(`/api/lookup/ip/${testIp}`);
     assert.strictEqual(res.status, 200);
+    assert.strictEqual(calls.length, count, 'Cache HIT must make zero external requests');
 
     const body = await res.json();
     assert.strictEqual(body.source, 'cache', 'Expected Cache HIT on second lookup');
@@ -46,7 +51,7 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
 
   it('should perform domain lookup with Cache MISS then Cache HIT behavior', async () => {
     // 1. First call -> Cache MISS
-    const resMiss = await server.fetch(`/api/lookup/domain/${testDomain}`);
+    const resMiss = await lookup(`/api/lookup/domain/${testDomain}`);
     assert.strictEqual(resMiss.status, 200);
     const bodyMiss = await resMiss.json();
     assert.strictEqual(bodyMiss.source, 'api');
@@ -54,7 +59,7 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
     assert.strictEqual(bodyMiss.type, 'domain');
 
     // 2. Second call -> Cache HIT
-    const resHit = await server.fetch(`/api/lookup/domain/${testDomain}`);
+    const resHit = await lookup(`/api/lookup/domain/${testDomain}`);
     assert.strictEqual(resHit.status, 200);
     const bodyHit = await resHit.json();
     assert.strictEqual(bodyHit.source, 'cache');
@@ -63,7 +68,7 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
   });
 
   it('should perform cryptographic hash lookup with valid algorithm identification', async () => {
-    const res = await server.fetch(`/api/lookup/hash/${testHash}`);
+    const res = await lookup(`/api/lookup/hash/${testHash}`);
     assert.strictEqual(res.status, 200);
     const body = await res.json();
     assert.strictEqual(body.indicator, testHash);
@@ -75,7 +80,7 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
     const badIps = ['999.1.2.3', '192.168.01.1', 'not-an-ip', '10.0.0.1.1'];
 
     for (const badIp of badIps) {
-      const res = await server.fetch(`/api/lookup/ip/${badIp}`);
+      const res = await lookup(`/api/lookup/ip/${badIp}`);
       assert.strictEqual(res.status, 400, `Expected 400 for IP "${badIp}"`);
       const body = await res.json();
       assert.strictEqual(body.error, 'Validation Error');
@@ -86,7 +91,7 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
     const badDomains = ['-starts-with-hyphen.com', 'has..double-dots.org', 'no-tld'];
 
     for (const badDomain of badDomains) {
-      const res = await server.fetch(`/api/lookup/domain/${badDomain}`);
+      const res = await lookup(`/api/lookup/domain/${badDomain}`);
       assert.strictEqual(res.status, 400, `Expected 400 for domain "${badDomain}"`);
       const body = await res.json();
       assert.strictEqual(body.error, 'Validation Error');
@@ -97,7 +102,7 @@ describe('Integration Tests: Threat Lookup & Cache Validation (/api/lookup)', ()
     const badHashes = ['tooshort', 'd41d8cd98f00b204e9800998ecf8427z']; // Non-hex 'z'
 
     for (const badHash of badHashes) {
-      const res = await server.fetch(`/api/lookup/hash/${badHash}`);
+      const res = await lookup(`/api/lookup/hash/${badHash}`);
       assert.strictEqual(res.status, 400, `Expected 400 for hash "${badHash}"`);
       const body = await res.json();
       assert.strictEqual(body.error, 'Validation Error');
