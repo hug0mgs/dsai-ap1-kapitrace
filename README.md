@@ -165,7 +165,7 @@ npm --prefix src/backend run db:deploy
 npm --prefix src/backend run db:check
 ```
 
-O baseline confere colunas/tipos/nullabilidade, PKs, email único e FKs e registra somente a migration inicial como aplicada. A migration de segurança continua sendo executada pelo deploy. Se houver tabelas incompletas/incompatíveis, o baseline falha; não apaga nem recria dados. Migrations em `src/backend/prisma/migrations/` criam a estrutura, habilitam RLS e revogam acesso de PUBLIC/anon/authenticated. O backend precisa de um role PostgreSQL autorizado a acessar as tabelas e a passar RLS (owner/BYPASSRLS); o JWT do projeto não autentica a Data API Supabase. Os wrappers administrativos não imprimem URLs ou erros brutos de conexão.
+O baseline confere colunas/tipos/nullabilidade, PKs, email único e FKs e registra somente a migration inicial como aplicada. A migration de segurança continua sendo executada pelo deploy. Se houver tabelas incompletas/incompatíveis, o baseline falha; não apaga nem recria dados. Migrations em `src/backend/prisma/migrations/` criam a estrutura, habilitam RLS e revogam acesso de PUBLIC/anon/authenticated, incluindo `_prisma_migrations` para que o histórico/logs do Prisma não fiquem expostos pela Data API. O backend precisa de um role PostgreSQL autorizado a acessar as tabelas e a passar RLS (owner/BYPASSRLS); o JWT do projeto não autentica a Data API Supabase. Os wrappers administrativos não imprimem URLs ou erros brutos de conexão.
 
 Dados do SQLite **não são copiados automaticamente**. O arquivo antigo pode ser mantido para exportação/migração de dados em trabalho separado. Git push publica código no GitHub; aplicar alterações no Supabase depende de `db:deploy` com uma conexão configurada. Depois, cadastro/login/watchlist feitos pela interface usam PostgreSQL.
 
@@ -206,7 +206,7 @@ npm --prefix src/frontend run build
 
 Integração/E2E exigem Docker em execução (imagem `postgres:16`) ou `TEST_DATABASE_URL` apontando explicitamente a PostgreSQL de testes. Unitários não exigem banco. Os testes nunca usam `DATABASE_URL` de produção como fallback e recusam endpoints Supabase.
 
-Os testes usam `node:test`/`node:assert`, PostgreSQL 16 real em container Docker temporário e um schema exclusivo por processo. O container publica somente em loopback, não usa volume e tem senha aleatória em memória. O runner aplica as mesmas migrations do deploy e remove somente os schemas/container criados para o teste. A interceptação nativa permanece somente na fronteira HTTP externa. Tráfego externo não interceptado é bloqueado nos testes. Chrome/Chromium instalado é necessário para E2E; `CHROME_BIN` aponta para seu executável. O runner CDP/WebSocket é próprio, sem Playwright/Selenium. O fluxo HTTP anterior foi preservado em `tests/integration/workflow.test.ts`. Testes de Lookup autenticam uma conta real pelo endpoint de login; o helper anônimo permanece disponível para provar 401. A suíte cobre JWT isolado, login, HIT/MISS autenticados e E2E com erros de credenciais/rede, Bearer, 401, logout e recarga. Na validação desta etapa, **84 testes passaram**, além dos builds de backend/frontend e lint.
+Os testes usam `node:test`/`node:assert`, PostgreSQL 16 real em container Docker temporário e um schema exclusivo por processo. O container publica somente em loopback, não usa volume e tem senha aleatória em memória. O runner aplica as mesmas migrations do deploy e remove somente os schemas/container criados para o teste. A interceptação nativa permanece somente na fronteira HTTP externa. Tráfego externo não interceptado é bloqueado nos testes. Chrome/Chromium instalado é necessário para E2E; `CHROME_BIN` aponta para seu executável. O runner CDP/WebSocket é próprio, sem Playwright/Selenium. O fluxo HTTP anterior foi preservado em `tests/integration/workflow.test.ts`. Testes de Lookup autenticam uma conta real pelo endpoint de login; o helper anônimo permanece disponível para provar 401. A suíte cobre JWT isolado, login, HIT/MISS autenticados e E2E com erros de credenciais/rede, Bearer, 401, logout e recarga. Na validação desta etapa, **85 testes passaram**, além dos builds de backend/frontend e lint.
 
 ### Scripts Disponíveis (Backend)
 | Script        | Comando                  |
@@ -218,7 +218,7 @@ Os testes usam `node:test`/`node:assert`, PostgreSQL 16 real em container Docker
 | `npm run db:push` | Alias compatível de `db:deploy`; não executa reset/diff destrutivo |
 | `npm run db:baseline` | Adota tabelas existentes após conferir estrutura |
 | `npm run db:validate` | Valida schema/configuração |
-| `npm run db:check` | Verifica conexão, tabelas, RLS e permissões |
+| `npm run db:check` | Verifica conexão, tabelas, histórico Prisma, RLS e permissões |
 | `npm run db:studio` | `prisma studio`  |
 | `npm test`    | Executa suíte de testes unitários, integração e E2E |
 
@@ -234,14 +234,14 @@ cloc . --exclude-dir=.git,.next,dist,coverage,metrics
 Relatório com dependências:
 
 ```text
-github.com/AlDanial/cloc v 2.06  T=5.03 s (1717.8 files/s, 506027.9 lines/s)
+github.com/AlDanial/cloc v 2.06  T=4.38 s (1972.9 files/s, 581124.7 lines/s)
 ---------------------------------------------------------------------------------------
 Language                             files          blank        comment           code
 ---------------------------------------------------------------------------------------
-JavaScript                            5304          57970          95225        1509960
+JavaScript                            5304          57970          95225        1509965
 JSON                                   766             47              0         274426
-TypeScript                            1555          28124         213100         238273
-Markdown                               776          27945            432          75611
+TypeScript                            1555          28124         213100         238283
+Markdown                               776          27956            432          75624
 C/C++ Header                            11           1661           1255           9493
 C++                                     10            449            726           4704
 YAML                                   121            138             90           1630
@@ -255,7 +255,7 @@ Go                                       1             23              7        
 SVG                                     28              0              0            127
 PHP                                      1             13             19            124
 Prisma Schema                            2             26              0            122
-SQL                                      2             18             15             91
+SQL                                      3             18             17            104
 make                                     3             24              4             48
 Bourne Again Shell                       2             11              1             43
 HTML                                     4             10              0             34
@@ -264,7 +264,7 @@ XML                                      1              0              0        
 TOML                                     1              0              0              1
 CoffeeScript                             1              1              0              0
 ---------------------------------------------------------------------------------------
-SUM:                                  8647         117196         311089        2118983
+SUM:                                  8648         117207         311091        2119024
 ---------------------------------------------------------------------------------------
 ```
 

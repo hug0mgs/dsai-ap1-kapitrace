@@ -43,3 +43,9 @@ Usuário forneceu URL pública e publishable key do Supabase; valores não neces
 postgresql://postgres.ybqhmhjghgndkvrtugnc:[YOUR-PASSWORD]@aws-1-us-west-2.pooler.supabase.com:5432/postgres
 
 Session Pooler configurado em DIRECT_URL e Transaction Pooler em DATABASE_URL, ambos privados, com TLS e limite de conexão. Conexão bem-sucedida; sete tabelas existentes e ausência de histórico Prisma. Baseline, deploy e check executados com sucesso, sem reset/perda de dados. Auditoria: sete tabelas com RLS e sem SELECT público; _prisma_migrations sem RLS e com SELECT público. Complemento de SPEC criado antes da correção do histórico. Não registrar URLs completas com senha, JWTs ou conteúdos de registros de usuários.
+
+## Resultado remoto final
+
+Conexões IPv4 configuradas somente no .env local: Session Pooler administrativo e Transaction Pooler runtime, TLS/pgbouncer e limite 1. Após baseline validado sem reset, migrations 20261006000100_initial_postgresql e 20261006000200_backend_only_security foram aplicadas/registradas. Auditoria do histórico exposto motivou SPEC complementar 45b6def, anterior à correção f7b6901. Terceira migration 20261006000300_private_migration_history foi validada em PostgreSQL local (85 testes passaram) e aplicada ao Supabase. db:check e auditoria final confirmaram oito tabelas (sete da aplicação + histórico) com RLS e sem acesso SELECT/INSERT/UPDATE/DELETE de anon/authenticated. O owner/BYPASSRLS continua autorizado, preservando deployments futuros. Não foram consultados registros de usuários nem feitas alterações de dados da aplicação. SQL aplicado apenas conforme migrations versionadas.
+
+URLs e senha não são commitadas. Prompt que continha senha foi redigido por segurança; não reproduzir segredo nem chave em logs/exportações. Verificação bruta remota sem credenciais anexada. Código/evidências enviados à branch stagging, não à develop. Deploy do aplicativo na Vercel não foi executado nesta etapa.
