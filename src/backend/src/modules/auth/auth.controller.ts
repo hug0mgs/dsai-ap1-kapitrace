@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
 import prisma from '../../shared/prisma';
-import { AuthRequest } from '../../middleware/auth';
+import { AuthRequest, JWT_ISSUER, JWT_AUDIENCE } from '../../middleware/auth';
 
 import { jwtSecret } from '../../shared/config';
 
@@ -74,14 +74,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
 export const login = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { email, password } = req.body;
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Pragma', 'no-cache');
+    const { email, password } = req.body ?? {};
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || !isValidEmail(email) || email.trim().length > 254 ||
+        typeof password !== 'string' || !password || password.length > 1024) {
       res.status(400).json({ error: 'Email and password are required' });
       return;
     }
 
-    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedEmail = email.trim().toLowerCase();
     const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
@@ -97,7 +100,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       jwtSecret(),
-      { expiresIn: '1d' }
+      { expiresIn: '1d', algorithm: 'HS256', issuer: JWT_ISSUER, audience: JWT_AUDIENCE }
     );
 
     res.json({
@@ -116,6 +119,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 };
 
 export const refreshToken = async (req: AuthRequest, res: Response): Promise<void> => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Pragma', 'no-cache');
   try {
     if (!req.user || !req.user.id) {
       res.status(401).json({ error: 'Authentication required for token renewal' });
@@ -131,7 +136,7 @@ export const refreshToken = async (req: AuthRequest, res: Response): Promise<voi
     const newToken = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       jwtSecret(),
-      { expiresIn: '1d' }
+      { expiresIn: '1d', algorithm: 'HS256', issuer: JWT_ISSUER, audience: JWT_AUDIENCE }
     );
 
     res.json({

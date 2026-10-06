@@ -1,8 +1,8 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
-import { startTestServer, TestServer } from '../test-helper';
+import { startTestServer, withBearer, TestServer } from '../test-helper';
 
-describe('E2E End-to-End Workflow: Security Operations Center (SOC) Lifecycle', () => {
+describe('Integration SOC Workflow: Security Operations Center (SOC) Lifecycle', () => {
   let server: TestServer;
   let sessionToken = '';
   let analystId = '';
@@ -66,7 +66,7 @@ describe('E2E End-to-End Workflow: Security Operations Center (SOC) Lifecycle', 
     const targetDomain = `c2-malware-feed-${Date.now()}.org`;
 
     // 1. First lookup triggers Cache MISS and API evaluation
-    const lookup1 = await server.fetch(`/api/lookup/domain/${targetDomain}`);
+    const lookup1 = await withBearer(server, sessionToken)(`/api/lookup/domain/${targetDomain}`);
     assert.strictEqual(lookup1.status, 200);
     const data1 = await lookup1.json();
     assert.strictEqual(data1.source, 'api');
@@ -75,7 +75,7 @@ describe('E2E End-to-End Workflow: Security Operations Center (SOC) Lifecycle', 
     assert.ok(data1.riskLevel);
 
     // 2. Immediate second lookup returns Cache HIT
-    const lookup2 = await server.fetch(`/api/lookup/domain/${targetDomain}`);
+    const lookup2 = await withBearer(server, sessionToken)(`/api/lookup/domain/${targetDomain}`);
     assert.strictEqual(lookup2.status, 200);
     const data2 = await lookup2.json();
     assert.strictEqual(data2.source, 'cache');
@@ -84,7 +84,7 @@ describe('E2E End-to-End Workflow: Security Operations Center (SOC) Lifecycle', 
 
     // B. Query a file hash (SHA-256)
     const targetHash = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-    const hashRes = await server.fetch(`/api/lookup/hash/${targetHash}`);
+    const hashRes = await withBearer(server, sessionToken)(`/api/lookup/hash/${targetHash}`);
     assert.strictEqual(hashRes.status, 200);
     const hashData = await hashRes.json();
     assert.strictEqual(hashData.type, 'hash');
@@ -92,7 +92,7 @@ describe('E2E End-to-End Workflow: Security Operations Center (SOC) Lifecycle', 
 
     // C. Query an IPv4 address
     const targetIp = '198.51.100.99';
-    const ipRes = await server.fetch(`/api/lookup/ip/${targetIp}`);
+    const ipRes = await withBearer(server, sessionToken)(`/api/lookup/ip/${targetIp}`);
     assert.strictEqual(ipRes.status, 200);
     const ipData = await ipRes.json();
     assert.strictEqual(ipData.type, 'ip');

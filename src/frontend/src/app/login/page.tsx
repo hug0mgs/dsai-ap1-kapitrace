@@ -1,7 +1,8 @@
 'use client';
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { api, SESSION_KEY } from '../../lib/api';
+import { api } from '../../lib/api';
+import { setSessionToken } from '../../lib/session';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,11 +14,13 @@ export default function LoginPage() {
     const form = new FormData(event.currentTarget);
     const credentials = { email: String(form.get('email')), password: String(form.get('password')) };
     setError(''); setLoading(true);
+    setSessionToken(null);
     try {
       if (register) await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ ...credentials, name: String(form.get('name') || '') }) });
       const result = await api<{ token: string }>('/api/auth/login', { method: 'POST', body: JSON.stringify(credentials) });
-      sessionStorage.setItem(SESSION_KEY, result.token);
-      router.push('/lookup');
+      if (typeof result.token !== 'string') throw new Error('Resposta de autenticação inválida.');
+      setSessionToken(result.token);
+      router.replace('/lookup');
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Falha na autenticação'); }
     finally { setLoading(false); }
   }
@@ -30,6 +33,6 @@ export default function LoginPage() {
       {error && <p role="alert">{error}</p>}
       <button className="btn btn-primary" type="submit" disabled={loading}>{loading ? 'Aguarde…' : register ? 'Criar conta e entrar' : 'Entrar'}</button>
     </form>
-    <button className="btn btn-ghost" onClick={() => { setRegister(!register); setError(''); }}>{register ? 'Já tenho conta' : 'Criar conta'}</button>
+    <button className="btn btn-ghost" disabled={loading} onClick={() => { setRegister(!register); setError(''); }}>{register ? 'Já tenho conta' : 'Criar conta'}</button>
   </div></div>;
 }

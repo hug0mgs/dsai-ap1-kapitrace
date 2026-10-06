@@ -1,4 +1,6 @@
 import path from 'node:path';
+import assert from 'node:assert/strict';
+import { randomBytes, randomUUID } from 'node:crypto';
 
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -9,7 +11,7 @@ import { Server } from 'node:http';
 const directory = mkdtempSync(path.join(tmpdir(), 'kapitrace-test-'));
 process.env.DATABASE_URL = `file:${path.join(directory, 'test.db')}`;
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = 'test-only-credential-not-for-production-2026';
+process.env.JWT_SECRET = randomBytes(48).toString('hex');
 process.env.LOOKUP_REQUESTS_PER_MINUTE = '10000';
 for (const provider of ['ABUSEIPDB','VIRUSTOTAL','SHODAN','GREYNOISE','OTX','URLSCAN','IPINFO']) {
   process.env[provider === 'IPINFO' ? 'IPINFO_TOKEN' : `${provider}_API_KEY`] = 'test-only-key';
@@ -61,4 +63,24 @@ export function startTestServer(): Promise<TestServer> {
       });
     });
   });
+}
+
+/** Explicit login through the real Auth API. server.fetch stays anonymous by default. */
+export async function loginTestUser(server: TestServer): Promise<string> {
+  const credentials = { email: `lookup-${randomUUID()}@example.com`, password: 'TestOnlyLogin-2026!' };
+  const init = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+  const register = await server.fetch('/api/auth/register', { ...init, body: JSON.stringify(credentials) });
+  assert.equal(register.status, 201);
+  const login = await server.fetch('/api/auth/login', { ...init, body: JSON.stringify(credentials) });
+  assert.equal(login.status, 200);
+  const body = await login.json();
+  assert.equal(typeof body.token, 'string');
+  return body.token;
+}
+export function withBearer(server: TestServer, token: string): TestServer['fetch'] {
+  return (path, options = {}) => {
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${token}`);
+    return server.fetch(path, { ...options, headers });
+  };
 }

@@ -88,6 +88,8 @@ describe('Integration Tests: Authentication Module (/api/auth)', () => {
     });
 
     assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers.get('cache-control'), 'no-store');
+    assert.strictEqual(res.headers.get('pragma'), 'no-cache');
     const body = await res.json();
     assert.ok(body.token, 'Expected JWT token in response');
     assert.strictEqual(body.user.email, testEmail);
@@ -109,6 +111,16 @@ describe('Integration Tests: Authentication Module (/api/auth)', () => {
     assert.strictEqual(res.status, 401);
     const body = await res.json();
     assert.strictEqual(body.error, 'Invalid credentials');
+  });
+
+  it('should reject malformed login bodies as 400 and unknown accounts as 401', async () => {
+    for (const body of [{}, { email: testEmail }, { email: {}, password: testPassword }, { email: testEmail, password: [] }, { email: 'not-an-email', password: testPassword }, { email: testEmail, password: 'x'.repeat(1025) }]) {
+      const res = await server.fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      assert.strictEqual(res.status, 400);
+    }
+    const res = await server.fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'unknown@example.com', password: testPassword }) });
+    assert.strictEqual(res.status, 401);
+    assert.deepStrictEqual(await res.json(), { error: 'Invalid credentials' });
   });
 
   it('should renew and refresh token via /api/auth/refresh when authenticated', async () => {

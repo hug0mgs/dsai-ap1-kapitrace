@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Suspense, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api } from '../../lib/api';
+import RequireSession from '../../components/RequireSession';
 
 type LookupType = 'ip' | 'domain' | 'hash';
 interface Source { name: string; status: string; details?: Record<string, unknown>; retryAfter?: number }
@@ -39,7 +40,7 @@ function LookupContent() {
     if (!result) return;
     setAdding(true); setError(''); setNotice('');
     try {
-      await api('/api/watchlist', { method: 'POST', body: JSON.stringify({ itemValue: result.indicator, itemType: result.type }) }, true);
+      await api('/api/watchlist', { method: 'POST', body: JSON.stringify({ itemValue: result.indicator, itemType: result.type }) });
       setNotice('Indicador adicionado à watchlist.');
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'Falha ao adicionar'); }
     finally { setAdding(false); }
@@ -63,5 +64,5 @@ function LookupContent() {
 }
 
 export default function LookupPage() {
-  return <Suspense fallback={<p role="status">Carregando busca…</p>}><LookupContent /></Suspense>;
+  return <RequireSession><Suspense fallback={<p role="status">Carregando busca…</p>}><LookupContent /></Suspense></RequireSession>;
 }
