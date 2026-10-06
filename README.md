@@ -1,6 +1,6 @@
 # 🛡️ KapiTrace — Threat Intelligence & IP Reputation
 
-🔗 **Repositório Público**: [https://github.com/hug0mgs/dsai-ap1-kapitrace](https://github.com/hug0mgs/dsai-ap1-kapitrace)
+🔗 **Link**: https://dsai-ap1-kapitrace.vercel.app/
 
 > Plataforma de inteligência de ameaças e verificação de reputação de IPs, domínios e hashes. A integração de emails ainda não está disponível.
 > Consulta **7 serviços externos**, conforme as chaves e o plano configurados, para produzir um **score de reputação unificado**. Sem evidência disponível, informa dados insuficientes; não fabrica reputação.
