@@ -222,54 +222,6 @@ Os testes usam `node:test`/`node:assert`, PostgreSQL 16 real em container Docker
 | `npm run db:studio` | `prisma studio`  |
 | `npm test`    | Executa suíte de testes unitários, integração e E2E |
 
-## 📊 Métricas de Código (Relatório `cloc`)
-
-Contagem real em 2026-10-06, usando `cloc` 2.06. Há dois escopos: arquivos do projeto sem dependências/lockfiles e workspace com as dependências locais instaladas. **O mínimo de 100.000 linhas é atingido pelo escopo com dependências**, não pelo código autoral.
-
-```bash
-cloc . --exclude-dir=node_modules,.git,.next,dist,coverage,metrics --not-match-f='package-lock\.json$'
-cloc . --exclude-dir=.git,.next,dist,coverage,metrics
-```
-
-Relatório com dependências:
-
-```text
-github.com/AlDanial/cloc v 2.06  T=4.38 s (1972.9 files/s, 581124.7 lines/s)
----------------------------------------------------------------------------------------
-Language                             files          blank        comment           code
----------------------------------------------------------------------------------------
-JavaScript                            5304          57970          95225        1509965
-JSON                                   766             47              0         274426
-TypeScript                            1555          28124         213100         238283
-Markdown                               776          27956            432          75624
-C/C++ Header                            11           1661           1255           9493
-C++                                     10            449            726           4704
-YAML                                   121            138             90           1630
-CSS                                      4            193             57           1159
-Bourne Shell                             4            180            114            842
-Text                                    19            172              0            712
-Python                                   8             30             27            562
-Windows Module Definition                5             83              0            451
-INI                                     17             69              0            280
-Go                                       1             23              7            249
-SVG                                     28              0              0            127
-PHP                                      1             13             19            124
-Prisma Schema                            2             26              0            122
-SQL                                      3             18             17            104
-make                                     3             24              4             48
-Bourne Again Shell                       2             11              1             43
-HTML                                     4             10              0             34
-Dockerfile                               1              9             17             31
-XML                                      1              0              0             10
-TOML                                     1              0              0              1
-CoffeeScript                             1              1              0              0
----------------------------------------------------------------------------------------
-SUM:                                  8648         117207         311091        2119024
----------------------------------------------------------------------------------------
-```
-
-Relatório sem dependências/lockfiles: [metrics/cloc-project.txt](metrics/cloc-project.txt). Saída abrangente: [metrics/cloc-workspace.txt](metrics/cloc-workspace.txt). A contagem depende das versões e arquivos instalados; dependências não são atribuídas à autoria do projeto.
-
 ## 🎨 Design System
 
 O CSS segue um design system **dark-mode cybersecurity** completo:
